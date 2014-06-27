@@ -1,0 +1,15 @@
+Usage: moviechecker.py [options] arg
+
+Options:
+  --version             show program's version number and exit
+  -h, --help            show this help message and exit
+  -s STARTDIR, --start-dir=STARTDIR
+                        Start Directory to start processing movies
+                        [/d1/movies/]
+  -l LEVEL, --log-level=LEVEL
+                        change log level [info]
+  -c, --check-videos    Check video MD5's to find bad ones [False]
+  --continuous=LOOP     Run continuously, and loop every [0] seconds
+
+  Debug Options:
+    -d, --debug         Print debug information

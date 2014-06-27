@@ -14,49 +14,42 @@ def md5Checksum(filePath):
             m.update(data)
         return m.hexdigest()
 
-def locate(pattern, root=os.curdir):
-    '''Locate all files matching supplied filename pattern in and below
-    supplied root directory.'''
-    for path, dirs, files in os.walk(os.path.abspath(root)):
-        for filename in fnmatch.filter(files, pattern):
-            yield os.path.join(path, filename)
-
 def main(options):
     totalfiles = 0
     hashesadded = 0
-    for video in locate('*.mkv',options.startdir):
-        totalfiles += 1
-        basepath = os.path.dirname(video);
-        filename = video.split('/')[-1]
-        basename = '.'.join(filename.split('.')[0:-1])
-        extension = filename.split('.')[-1]
-        logging.debug('Found (%s)',video)
-        logging.debug('BasePath (%s), Filename (%s), Basename (%s), Extension (%s)',basepath,filename,basename,extension)
+    for basepath, dirs, files in os.walk( os.path.abspath(options.startdir) ):
+        for filename in files:
+            if filename.lower().endswith(('.mkv','.avi','.mp4','.mpeg')):
+                video = basepath + "/" + filename
+                totalfiles += 1
+                basename = '.'.join(filename.split('.')[0:-1])
+                extension = filename.split('.')[-1]
+                logging.debug('Found (%s)',video)
+                logging.debug('BasePath (%s), Filename (%s), Basename (%s), Extension (%s)',basepath,filename,basename,extension)
 
-        hashfile = basepath + "/" + basename + ".md5"
+                hashfile = basepath + "/" + basename + ".md5"
 
-        if os.path.isfile(hashfile):
-            logging.debug('Found MD5 hash existing for (%s)!', filename)
-            if options.checkvideos:
-                chkfh = open(hashfile,'r')
-                filevalue = chkfh.readline().split()[0].lower()
-                chkfh.close()
-                logging.debug('Existing hash for video (%s) is (%s)',video,filevalue)
-                md5value = md5Checksum(video).lower()
-                if md5value != filevalue:
-                    logging.error('BAD: Hash does not match for file (%s), stored hash (%s), computed hash (%s)!',video,filevalue,md5value)
+                if os.path.isfile(hashfile):
+                    logging.debug('Found MD5 hash existing for (%s)!', filename)
+                    if options.checkvideos:
+                        chkfh = open(hashfile,'r')
+                        filevalue = chkfh.readline().split()[0].lower()
+                        chkfh.close()
+                        logging.debug('Existing hash for video (%s) is (%s)',video,filevalue)
+                        md5value = md5Checksum(video).lower()
+                        if md5value != filevalue:
+                            logging.error('BAD: Hash does not match for file (%s), stored hash (%s), computed hash (%s)!',video,filevalue,md5value)
+                        else:
+                            logging.info('GOOD: %s [ %s / %s ]',video,filevalue,md5value)
+                    
                 else:
-                    logging.info('GOOD: %s [ %s / %s ]',video,filevalue,md5value)
-            
-        else:
-            logging.info('Generating hash for (%s)',filename)
-            md5value = md5Checksum(video)
-            hashfh = open(hashfile,'w')
-            hashfh.write(md5value + "\t" + filename)
-            hashfh.close()
-            logging.info('Wrote computed value (%s) for filename (%s)',md5value,filename)
-            hashesadded += 1
-
+                    logging.info('Generating hash for (%s)',filename)
+                    md5value = md5Checksum(video)
+                    hashfh = open(hashfile,'w')
+                    hashfh.write(md5value + "\t" + filename)
+                    hashfh.close()
+                    logging.info('Wrote computed value (%s) for filename (%s)',md5value,filename)
+                    hashesadded += 1
     logging.info('Completed (%d) files, added (%d) hashes!',totalfiles,hashesadded)
     return
 
