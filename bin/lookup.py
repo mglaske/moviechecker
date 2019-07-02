@@ -132,6 +132,7 @@ class MovieDB(object):
                 self.log.error("Unable to get md5file=%s: %s", md5file, e)
         else:
             # Generate missing md5 file.
+            self.generate_checksum(path)
         return None
 
     def md5Checksum(path):
