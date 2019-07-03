@@ -62,6 +62,8 @@ class MovieDB(object):
         }
         self.db[md5sum] = movie
         self.path_index[filename] = md5sum
+        self.log.info("moviedb: adding filename=%s title=%s md5sum=%s to db!",
+                      filename, title, md5sum)
         if self.write_immediate:
             self.save()
         return
@@ -135,7 +137,7 @@ class MovieDB(object):
             self.generate_checksum(path)
         return None
 
-    def md5Checksum(path):
+    def md5Checksum(self, path):
         try:
             m = hashlib.md5()
             with open(path, 'rb') as fh:
@@ -185,12 +187,13 @@ class MovieDB(object):
 
     def clean_invalid(self):
         for e, d in self.db.iteritems():
-            if not d['valid']:
+            if not d.get('valid', True):
                 self.remove(md5sum=e)
         return
 
     def scan(self, startdir,
-             extensions=['mkv', 'avi', 'mp4', 'mpeg'],
+             extensions=['mkv', 'avi', 'mp4', 'mpeg', 'mpg'],
+             ext_skip=['md5','idx','sub','srt','nfo','sfv','txt','json','jpeg','jpg'],
              check=False):
         """ Scan startdir for files that end in extensions,
             if check is set, check the md5 file against the actual md5
@@ -202,7 +205,10 @@ class MovieDB(object):
                 fullpath = "%s/%s" % (basepath, filename)
                 extension = filename.split('.')[-1].lower()
                 basename = '.'.join(filename.split('.')[0:-1])
-                filesize = os.path.getsize(video)
+                filesize = os.path.getsize(fullpath)
+
+                if extension in ext_skip:
+                    continue
 
                 if extension not in extensions:
                     self.log.warning("filename=%s is not in extensions list=%s, skipping",
@@ -232,12 +238,12 @@ class MovieDB(object):
                         if md5value != checkvalue:
                             self.log.error("BAD: Hash mismatch for file=%s "
                                            "stored_hash=%s computed_hash=%s!",
-                                           video, md5value, checkvalue)
+                                           filename, md5value, checkvalue)
                         else:
                             self.log.info('GOOD: %s [ %s / %s ]', filename,
                                           md5value, checkvalue)
                 else:
-                    md5value = self.generate_checksum(video)
+                    md5value = self.generate_checksum(fullpath)
                 
                 if md5value in self.db:
                     self.db[md5value]['valid'] = True
@@ -247,12 +253,12 @@ class MovieDB(object):
                 if extension == "mkv":
                     mkvinfo = self.mkvinfo(fullpath)
 
-                self.db.add(title=video_name, year=video_year,
-                            genre=video_genre,
-                            filename=fullpath, md5sum=md5value,
-                            filetype=extension,
-                            filesize=self.bytes_to_human(filesize),
-                            mkvinfo=mkvinfo)
+                self.add(title=video_name, year=video_year,
+                         genre=video_genre,
+                         filename=fullpath, md5sum=md5value,
+                         filetype=extension,
+                         filesize=self.bytes_to_human(filesize),
+                         mkvinfo=mkvinfo)
 
         # remove files that have been deleted
         self.clean_invalid()
@@ -372,7 +378,7 @@ def _mkvinfonew(filename):
     return info
 
 
-def printmovies(results=[]):
+def printmovies(results=[], showkey=False):
     # sort
     rs = {}
     for m in results:
@@ -380,6 +386,8 @@ def printmovies(results=[]):
 
     for key in sorted(rs.keys()):
         m = rs[key]
+        if showkey:
+            sys.stdout.write("{0:<32s}  ".format(m['md5sum']))
         sys.stdout.write( "{0:<12s}  {1:<50s}  {2:<5s}".format(m['genre'], m['title'], m['year']) )
 
         extension = m['filename'][-3:]
@@ -408,13 +416,18 @@ def main(options):
     db = MovieDB(filename=options.dbfile)
     logging.info("Loaded %d movies from database=%s",
                  len(db.db), options.dbfile)
+
+    if options.delete:
+        db.remove(md5sum=options.delete)
+        
+
     if options.scan:
         db.scan(options.startdir)
 
     if options.search:
         results = db.search(options.search.lower())
         if len(results) > 0:
-            printmovies(results)
+            printmovies(results, options.showkey)
         
     db.save()
     return
@@ -422,13 +435,14 @@ def main(options):
 if __name__ == '__main__':
     usage = "Usage: %prog [options] arg"
     parser = optparse.OptionParser(usage, version="%prog 1.0")
-    parser.add_option('-s','--search', dest='search', type='string',help='Search string [%default]',default=None)
+    parser.add_option('-s','--search', dest='search', type='string',help='Search string [%default]', default=None)
+    parser.add_option('-d','--delete', dest='delete', type='string',help='Delete hash key from database [%default]', default=None)
     parser.add_option('--db', dest='dbfile', type='string', help='Database file [%default]', default="/d1/movies/db.json")
-    parser.add_option('-d','--start-dir',dest='startdir', type='string',metavar='STARTDIR',help='Start Directory to start processing movies [%default]',default='/d1/movies/')
+    parser.add_option('--start-dir',dest='startdir', type='string',metavar='STARTDIR',help='Start Directory to start processing movies [%default]',default='/d1/movies/')
     parser.add_option("-l", "--log-level", dest="log_level", type='string',metavar='LEVEL',help="change log level [%default]",default='info')
     parser.add_option("-c", "--check-videos", dest="checkvideos", action="store_true",help="Check video MD5's to find bad ones [%default]",default=False)
     parser.add_option("--scan", dest="scan", action="store_true", help="Scan files in addition to search db [%default]", default=False)
-    parser.add_option("--continuous", dest="loop", type='int', help="Run continuously, and loop every [%default] seconds",default=0)
+    parser.add_option("--key", dest="showkey", action="store_true", help="Show Key value [%default]", default=False)
     group = optparse.OptionGroup(parser, "Debug Options")
     group.add_option("--debug", action="store_true",help="Print debug information")
     parser.add_option_group(group)
