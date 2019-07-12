@@ -382,13 +382,15 @@ def printmovies(results=[], showkey=False):
     # sort
     rs = {}
     for m in results:
-        rs[m['title']] = m
+        newkey = "%s;%s" % (m['title'], m['md5sum'])
+        rs[newkey] = m
 
+    sys.stdout.write("{0:<12s}  {1:<50s}  {2:<5s}  {3:<10s}  {4:<3s}  {5:<18s}  {6:<5s}  {7:<15s}\n".format("Genre","Title","Year","Duration","Ext","Resolution","Audio","Size"))
     for key in sorted(rs.keys()):
         m = rs[key]
         if showkey:
             sys.stdout.write("{0:<32s}  ".format(m['md5sum']))
-        sys.stdout.write( "{0:<12s}  {1:<50s}  {2:<5s}".format(m['genre'], m['title'], m['year']) )
+        sys.stdout.write( "{0:<12s}  {1:<50s}  {2:<5s}".format(m['genre'], m['title'].replace(".", " "), m['year']) )
 
         extension = m['filename'][-3:]
         if m['mkvinfo']:
@@ -406,7 +408,7 @@ def printmovies(results=[], showkey=False):
             duration = str(mkvinfo.get('duration','n/a')).split('.')[0]
 
             res = "%s (%s)" % (resolution, resname)
-            sys.stdout.write("  {0:<10s}  Type={1:<3s}  Resolution={2:<18s}  Audio_Channels={3:<2d}  Size={4:<15s}".format(duration, extension.upper(), res, channels, m.get('filesize', -1)))
+            sys.stdout.write("  {0:<10s}  {1:<3s}  {2:<18s}  {3:<5d}  {4:<15s}".format(duration, extension.upper(), res, channels, m.get('filesize', -1)))
 
         sys.stdout.write("\n")
     return
