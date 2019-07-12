@@ -385,6 +385,8 @@ def printmovies(results=[], showkey=False):
         newkey = "%s;%s" % (m['title'], m['md5sum'])
         rs[newkey] = m
 
+    if showkey:
+        sys.stdout.write("{0:<32s}  ".format("md5sum"))
     sys.stdout.write("{0:<12s}  {1:<50s}  {2:<5s}  {3:<10s}  {4:<3s}  {5:<18s}  {6:<5s}  {7:<15s}\n".format("Genre","Title","Year","Duration","Ext","Resolution","Audio","Size"))
     for key in sorted(rs.keys()):
         m = rs[key]
