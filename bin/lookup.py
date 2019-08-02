@@ -6,6 +6,7 @@ import enzyme
 import hashlib
 import json
 import datetime
+from pymediainfo import MediaInfo
 #from hachoir_core.cmd_line import unicodeFilename
 #from hachoir_core.i18n import getTerminalCharset
 #from hachoir_metadata import extractMetadata
@@ -192,8 +193,8 @@ class MovieDB(object):
         return
 
     def scan(self, startdir,
-             extensions=['mkv', 'avi', 'mp4', 'mpeg', 'mpg'],
-             ext_skip=['md5','idx','sub','srt','nfo','sfv','txt','json','jpeg','jpg'],
+             extensions=['mkv', 'avi', 'mp4', 'mpeg', 'mpg', 'ts', 'flv', 'iso', 'm4v'],
+             ext_skip=['md5','idx','sub','srt','smi','nfo','sfv','txt','json','jpeg','jpg'],
              check=False):
         """ Scan startdir for files that end in extensions,
             if check is set, check the md5 file against the actual md5
@@ -249,20 +250,79 @@ class MovieDB(object):
                     self.db[md5value]['valid'] = True
                     continue
 
-                mkvinfo = None
-                if extension == "mkv":
-                    mkvinfo = self.mkvinfo(fullpath)
+                #mkvinfo = None
+                #if extension == "mkv":
+                #    mkvinfo = self.mkvinfo(fullpath)
+                mediainfo = None
+                mediainfo = self.mediainfo(fullpath)
 
                 self.add(title=video_name, year=video_year,
                          genre=video_genre,
                          filename=fullpath, md5sum=md5value,
                          filetype=extension,
                          filesize=self.bytes_to_human(filesize),
-                         mkvinfo=mkvinfo)
+                         mkvinfo=mediainfo)
 
         # remove files that have been deleted
         self.clean_invalid()
         return
+
+    def mediainfo(self, path):
+        info = { 'title': None, 'duration': None, 'chapters': None, 'video': [], 'audio': [] }
+        video = { 'height': None, 'width': None, 'resolution': None, 'resname': None, 'codec': None, 'duration': None, 'bit_rate': None, 'bit_depth': None, 'aspect_ratio': None }
+        audio = { 'freq': None, 'channels': None, 'language': None, 'bit_depth': None, 'codec': None }
+        try:
+            mi = MediaInfo.parse(path)
+        except Exception as e:
+            self.log.error("MediaInfo threw error reading path=%s: %s", path, e)
+            return self.mkvinfo(path)
+
+        for t in mi.tracks:
+            if t.track_type == 'General':
+                info['duration'] = self.ms_to_human(t.duration or 0)
+                continue
+            if t.track_type == "Video":
+                vt = dict(video)
+                try:
+                    # note, display_aspect_ratio = 1.791 , eg 16:9
+                    vt['aspect_ratio'] = t.other_display_aspect_ratio[0]
+                except:
+                    vt['aspect_ratio'] = 'n/a'
+                vt['height'] = t.height
+                vt['width'] = t.width
+                vt['resolution'] = "%dx%d" % (t.width, t.height)
+                if t.scan_type == 'Progressive':
+                    scantype = 'p'
+                else:
+                    scantype = 'i'
+                if 1081 > t.height > 720:
+                    resname = "1080"
+                elif 721 > t.height > 480:
+                    resname = "720"
+                elif 481 > t.height > 320:
+                    resname = "320"
+                else:
+                    resname = "%s" % t.height
+                vt['resname'] = "%s%s" % (resname, scantype)
+                vt['frame_rate'] = t.frame_rate
+                vt['codec'] = t.codec
+                vt['bit_depth'] = t.bit_depth
+                try:
+                    vt['bit_rate'] = self.speed_to_human(t.bit_rate)
+                except:
+                    vt['bit_rate'] = "n/a"
+                info['video'].append( vt )
+            if t.track_type == "Audio":
+                at = dict(audio)
+                at['codec'] = t.codec_family
+                at['format'] = t.format
+                at['bit_depth'] = t.bit_depth
+                at['language'] = t.language
+                at['channels'] = t.channel_s
+                at['freq'] = t.sampling_rate
+                info['audio'].append( at )
+
+        return info
 
     def mkvinfo(self, path):
         info = { 'title': None, 'duration': None, 'chapters': None, 'video': [], 'audio': [] }
@@ -314,6 +374,10 @@ class MovieDB(object):
             self.log.error("Unable to parse mkv! %s",e)
         return info
 
+    def speed_to_human(self, bps, precision=2):
+        mbps = bps/1000000.0
+        return "%.*fMb/s" %(precision, mbps)
+
     def bytes_to_human(self, size, precision=2):
         suffixes = ['B', 'KB', 'MB', 'GB', 'TB']
         suffixIndex = 0
@@ -322,60 +386,17 @@ class MovieDB(object):
             size = size/1024.0  # apply the division
         return "%.*f%s" % (precision, size, suffixes[suffixIndex])
 
+    def ms_to_human(self, ms):
+        seconds = float(ms) / 1000
+        minutes, seconds = divmod(seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+        days, hours = divmod(hours, 24)
+        return "%d:%02d:%02d" % (hours, minutes, seconds)
+
     def close(self):
         self.save()
         self.open = False
         return
-
-
-def _mkvinfonew(filename):
-    info = { 'title': None, 'duration': None, 'chapters': None, 'video': [], 'audio': [] }
-    video = { 'height': None, 'width': None, 'resolution': None, 'resname': None, 'codec': None, 'duration': None }
-    audio = { 'freq': None, 'channels': None, 'language': None, 'bit_depth': None, 'codec': None }
-    try:
-        charset = getTerminalCharset()
-        filename, real_filename = unicodeFilename(filename, charset), filename
-        parser = createParser(filename, real_filename=real_filename)
-        md = extractMetadata(parser)
-    except Exception, e:
-        logging.error("Could not open (%s) with enzyme for getting video info! %s",filename, e)
-        return info
-
-    try:
-        info['title'] = mkv.info.title
-        info['duration'] = mkv.info.duration
-        info['chapters'] = [ c.start for c in mkv.chapters ]
-        for v in mkv.video_tracks:
-            vt = dict(video)
-            vt['height'] = v.height
-            vt['width'] = v.width
-            vt['resolution'] = "%dx%d" % (v.width,v.height)
-            if v.interlaced:
-                scantype = 'i'
-            else:
-                scantype = 'p'
-            if 1081 > v.height > 720:
-                vt['resname'] = '1080%s' % scantype
-            elif 721 > v.height > 480:
-                vt['resname'] = '720%s' % scantype
-            elif 481 > v.height > 320:
-                vt['resname'] = '320%s' % scantype
-            else:
-                vt['resname'] = '%d%s' % (v.height,scantype)
-             
-            vt['codec'] = v.codec_id
-            info['video'].append( vt )
-        for a in mkv.audio_tracks:
-            at = dict(audio)
-            at['codec'] = a.codec_id
-            at['bit_depth'] = a.bit_depth
-            at['language'] = a.language
-            at['channels'] = a.channels
-            at['freq'] = a.sampling_frequency
-            info['audio'].append( at )
-    except Exception, e:
-        logging.error("Unable to parse mkv! %s",e)
-    return info
 
 
 def printmovies(results=[], showkey=False):
@@ -387,7 +408,7 @@ def printmovies(results=[], showkey=False):
 
     if showkey:
         sys.stdout.write("{0:<32s}  ".format("md5sum"))
-    sys.stdout.write("{0:<12s}  {1:<50s}  {2:<5s}  {3:<10s}  {4:<3s}  {5:<18s}  {6:<5s}  {7:<15s}\n".format("Genre","Title","Year","Duration","Ext","Resolution","Audio","Size"))
+    sys.stdout.write("{0:<12s}  {1:<50s}  {2:<5s}  {3:<10s}  {4:<3s}  {5:<18s}  {6:<10s}  {7:<5s}  {8:<15s}\n".format("Genre","Title","Year","Duration","Ext","Resolution","Bitrate","Audio","Size"))
     for key in sorted(rs.keys()):
         m = rs[key]
         if showkey:
@@ -398,6 +419,7 @@ def printmovies(results=[], showkey=False):
         if m['mkvinfo']:
             resolution = "n/a"
             resname = "n/a"
+            bitrate = "n/a"
             channels = -1
             mkvinfo = m['mkvinfo']
             video = mkvinfo.get('video', [])
@@ -405,12 +427,13 @@ def printmovies(results=[], showkey=False):
             if len(video) > 0:
                 resolution = video[0].get('resolution', 'n/a')
                 resname = video[0].get('resname', 'n/a')
+                bitrate = video[0].get('bit_rate', 'n/a')
             if len(audio) > 0:
-                channels = audio[0].get('channels', 'n/a')
+                channels = audio[0].get('channels', 'n/a') or "n/a"
             duration = str(mkvinfo.get('duration','n/a')).split('.')[0]
 
             res = "%s (%s)" % (resolution, resname)
-            sys.stdout.write("  {0:<10s}  {1:<3s}  {2:<18s}  {3:<5d}  {4:<15s}".format(duration, extension.upper(), res, channels, m.get('filesize', -1)))
+            sys.stdout.write("  {0:<10s}  {1:<3s}  {2:<18s}  {3:<10s}  {4:<5s}  {5:<15s}".format(duration, extension.upper(), res, bitrate, str(channels), m.get('filesize', -1)))
 
         sys.stdout.write("\n")
     return
