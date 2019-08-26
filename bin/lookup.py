@@ -177,13 +177,29 @@ class MovieDB(object):
  
     def save(self, filename=None):
         filename = filename or self.filename
+        lockfile = filename + ".lock"
+        if os.path.isfile(lockfile):
+            if (time.time() - os.path.getmtime(lockfile)) > 200:
+                self.log.warning("moviedb: lockfile=%s is stale, removing!", lockfile)
+                os.unlink(lockfile)
+            else:
+                sys.stdout.write("moviedb: locked, waiting..")
+                while True:
+                    sys.stdout.write(".")
+                    for t in range(1, 100):
+                        time.sleep(.1)
+                    if not os.path.isfile(lockfile):
+                        break
+
         try:
-            with open(filename, 'w') as fh:
-                json.dump(self.db, fh, default=self._datetimehandler)
+            open(lockfile, 'w').write("locked")
             self.log.info("moviedb: saving filename=%s with (%d) entries",
                           filename, len(self.db))
+            with open(filename, 'w') as fh:
+                json.dump(self.db, fh, default=self._datetimehandler)
         except Exception as e:
             self.log.error("unable to write db=%s: %s", filename, e)
+        os.unlink(lockfile)
         return
 
     def clean_invalid(self):
@@ -194,7 +210,7 @@ class MovieDB(object):
 
     def scan(self, startdir,
              extensions=['mkv', 'avi', 'mp4', 'mpeg', 'mpg', 'ts', 'flv', 'iso', 'm4v'],
-             ext_skip=['md5','idx','sub','srt','smi','nfo','sfv','txt','json','jpeg','jpg'],
+             ext_skip=['md5','idx','sub','srt','smi','nfo','sfv','txt','json','jpeg','jpg','bak'],
              check=False):
         """ Scan startdir for files that end in extensions,
             if check is set, check the md5 file against the actual md5
@@ -291,11 +307,13 @@ class MovieDB(object):
                 vt['height'] = t.height
                 vt['width'] = t.width
                 vt['resolution'] = "%dx%d" % (t.width, t.height)
-                if t.scan_type == 'Progressive':
-                    scantype = 'p'
-                else:
+                if 'lace' in ( t.scan_type or "" ):
                     scantype = 'i'
-                if 1081 > t.height > 720:
+                else:
+                    scantype = 'p'
+                if 1601 > t.height > 1080:
+                    resname = "2160"
+                elif 1081 > t.height > 720:
                     resname = "1080"
                 elif 721 > t.height > 480:
                     resname = "720"
@@ -307,10 +325,17 @@ class MovieDB(object):
                 vt['frame_rate'] = t.frame_rate
                 vt['codec'] = t.codec
                 vt['bit_depth'] = t.bit_depth
+                if t.bit_rate:
+                    br = t.bit_rate
+                elif t.nominal_bit_rate:
+                    br = t.nominal_bit_rate
+                else:
+                    br = None
                 try:
-                    vt['bit_rate'] = self.speed_to_human(t.bit_rate)
+                    vt['bit_rate'] = self.speed_to_human(br)
                 except:
                     vt['bit_rate'] = "n/a"
+
                 info['video'].append( vt )
             if t.track_type == "Audio":
                 at = dict(audio)
@@ -413,7 +438,10 @@ def printmovies(results=[], showkey=False):
         m = rs[key]
         if showkey:
             sys.stdout.write("{0:<32s}  ".format(m['md5sum']))
-        sys.stdout.write( "{0:<12s}  {1:<50s}  {2:<5s}".format(m['genre'], m['title'].replace(".", " "), m['year']) )
+        try:
+            sys.stdout.write( "{0:<12s}  {1:<50s}  {2:<5s}".format(m['genre'], m['title'].replace(".", " "), m['year']) )
+        except Exception as e:
+            logging.warning("Unable to print for title=%s err=%s", m['title'], e)
 
         extension = m['filename'][-3:]
         if m['mkvinfo']:
