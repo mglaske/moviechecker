@@ -12,6 +12,61 @@ from pymediainfo import MediaInfo
 #from hachoir_metadata import extractMetadata
 #from hachoir_parser import createParser
 
+
+class Locker():
+    def __init__(self, filename, clean=True):
+        import os
+        self.filename = filename
+        self.my_pid = os.getpid()
+        self.clean = clean
+        self.read()
+        self.write()
+
+    def exist(self):
+        return os.path.isfile(filename)
+
+    def is_running(self, pid):
+        try:
+            pgid = os.getpgid(pid)
+            return True
+        except:
+            pass
+        return False
+
+    def remove(self):
+        try:
+            os.unlink(self.filename)
+            return True
+        except Exception as err:
+            logging.error("Unable to remove pid file=%s: %s", self.filename, err)
+        return False
+
+    def write(self):
+        if not self.my_pid:
+            logging.error("NO PID detected!")
+            return False
+        try:
+            with open(self.filename, 'w') as fh:
+                fh.write(self.my_pid)
+            return True
+        except Exception as err:
+            logging.error("Error writing file=%s: %s", self.filename, err)
+        return False
+
+    def read(self):
+        if self.exist():
+            try:
+                filepid = open(self.filename).read()
+                if self.is_running(filepid):
+                    return filepid
+                else:
+                    logging.warning("PID=%s in file=%s is not running!", filepid, self.filename)
+                    if self.clean:
+                        self.remove()
+            except Exception as err:
+                logging.error("Error opening file=%s: %s", self.filename, err)
+        return self.my_pid
+
 class MovieDB(object):
 
     def __init__(self, filename):
@@ -433,7 +488,7 @@ def printmovies(results=[], showkey=False):
 
     if showkey:
         sys.stdout.write("{0:<32s}  ".format("md5sum"))
-    sys.stdout.write("{0:<12s}  {1:<50s}  {2:<5s}  {3:<10s}  {4:<3s}  {5:<18s}  {6:<10s}  {7:<5s}  {8:<15s}\n".format("Genre","Title","Year","Duration","Ext","Resolution","Bitrate","Audio","Size"))
+    sys.stdout.write("{0:<12s}  {1:<50s}  {2:<5s}  {3:<10s}  {4:<3s}  {5:<18s}  {6:<10s}  {7:<6s}  {8:<15s}  {9:<15s}\n".format("Genre","Title","Year","Duration","Ext","Resolution","Bitrate","AudioC","Formats","Size"))
     for key in sorted(rs.keys()):
         m = rs[key]
         if showkey:
@@ -453,15 +508,19 @@ def printmovies(results=[], showkey=False):
             video = mkvinfo.get('video', [])
             audio = mkvinfo.get('audio', [])
             if len(video) > 0:
-                resolution = video[0].get('resolution', 'n/a')
-                resname = video[0].get('resname', 'n/a')
-                bitrate = video[0].get('bit_rate', 'n/a')
-            if len(audio) > 0:
-                channels = audio[0].get('channels', 'n/a') or "n/a"
-            duration = str(mkvinfo.get('duration','n/a')).split('.')[0]
+                resolution = video[0].get('resolution', '--')
+                resname = video[0].get('resname', '--')
+                bitrate = video[0].get('bit_rate', '--')
+            audio_tracks = len(audio)
+            if audio_tracks > 0:
+                channels = audio[0].get('channels', '--') or "--"
+                channels = str(channels).replace("Object Based / ", "")
+            formats = [x.get('format') for x in audio if x.get('format')]
+            aformat = "/".join(formats)
+            duration = str(mkvinfo.get('duration','--')).split('.')[0]
 
             res = "%s (%s)" % (resolution, resname)
-            sys.stdout.write("  {0:<10s}  {1:<3s}  {2:<18s}  {3:<10s}  {4:<5s}  {5:<15s}".format(duration, extension.upper(), res, bitrate, str(channels), m.get('filesize', -1)))
+            sys.stdout.write("  {0:<10s}  {1:<3s}  {2:<18s}  {3:<10s}  {4:<6s}  {5:<15s}  {6:<15s}".format(duration, extension.upper(), res, bitrate, channels, aformat, m.get('filesize', -1)))
 
         sys.stdout.write("\n")
     return
