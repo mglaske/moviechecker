@@ -190,7 +190,7 @@ class MovieDB(object):
                 self.log.error("Unable to get md5file=%s: %s", md5file, e)
         else:
             # Generate missing md5 file.
-            self.generate_checksum(path)
+            return self.generate_checksum(path)
         return None
 
     def md5Checksum(self, path):
@@ -414,7 +414,7 @@ class MovieDB(object):
                 self.log.debug("enzyme decoded into: %s", mkv)
         except Exception as e:
             self.log.error("Could not open (%s) with enzyme for getting video info! %s",
-                           filename, e)
+                           path, e)
             return info
 
         try:

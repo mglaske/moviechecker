@@ -75,12 +75,13 @@ class Locker():
 class TVDB(object):
 
     def __init__(self, filename):
-        self.log = logging.getLogger(__name__)
+        self.log = logging.getLogger('TVDB')
         self.filename = filename
         self.db = {}
         self.path_index = {}
         self.write_immediate = False
         self.open = False
+        self.save_interval = 20  # Every 100 new entries, lets save the database.
         self.load(filename)
 
     def _datetimehandler(self, o):
@@ -129,8 +130,8 @@ class TVDB(object):
         self.db[md5sum] = tv
         self.path_index[filename] = md5sum
         what = self.name(show, season, episode)
-        self.log.info("tvdb: adding filename=%s show=%s md5sum=%s to db!",
-                      filename, what, md5sum)
+        self.log.info("tvdb: adding filename=%s show=%s md5sum=%s to db",
+                      os.path.basename(filename), what, md5sum)
         if self.write_immediate:
             self.save()
         return
@@ -210,7 +211,7 @@ class TVDB(object):
                 self.log.error("Unable to get md5file=%s: %s", md5file, e)
         else:
             # Generate missing md5 file.
-            self.generate_checksum(path)
+            return self.generate_checksum(path)
         return None
 
     def md5Checksum(self, path):
@@ -228,17 +229,17 @@ class TVDB(object):
         return None
 
     def generate_checksum(self, path):
-        self.log.info('Generating hash for (%s)', path)
+        filename = os.path.basename(path)
+        self.log.info('Generating hash for (%s)', filename)
         md5value = self.md5Checksum(path)
         if not md5value:
             return None
         md5file = self.md5filename(path)
-        filename = os.path.basename(path)
         try:
             with open(md5file, 'w') as fh:
                 fh.write(md5value + "\t" + filename)
-            logging.info('Wrote computed value (%s) for filename (%s)',
-                         md5value, md5file)
+            self.log.info('Wrote computed value (%s) for filename (%s)',
+                          md5value, os.path.basename(md5file))
         except Exception as e:
             self.log.error("Unable to write checksum file (%s): %s",
                            md5file, e)
@@ -292,9 +293,9 @@ class TVDB(object):
             checksum, and report
         """
         abspath = os.path.abspath(startdir)
-        show_match = re.compile(r"^(\w+)\.[Ss]{1}(\d+)[Ee]{1}(\d+)\.([^.]+)\.(\S+)\.[A-Za-z0-9]+$")
+        show_match = re.compile(r"^([^.]+)\.[Ss]{1}(\d+)[Ee]{1}(\d+)\.([^.]*)\.(\S+)\.[A-Za-z0-9]+$")
         found = 0
-        for basepath, dirs, files in os.walk(abspath):
+        for video_subdir, dirs, files in os.walk(abspath):
             if limit > 0 and found >= limit:
                 break
 
@@ -303,7 +304,12 @@ class TVDB(object):
                     self.log.info("SCAN LIMIT=%d SET, Stopping..", limit)
                     break
 
-                fullpath = "%s/%s" % (basepath, filename)
+                if found % self.save_interval == 0:
+                    self.log.debug("Intermediate DB Save, found=%d interval=%d",
+                                   found, self.save_interval)
+                    self.save()
+
+                fullpath = "%s/%s" % (video_subdir, filename)
                 extension = filename.split('.')[-1].lower()
                 basename = '.'.join(filename.split('.')[0:-1])
                 filesize = os.path.getsize(fullpath)
@@ -316,7 +322,6 @@ class TVDB(object):
                                      fullpath, extensions)
                     continue
 
-                video_subdir = basepath
                 video_name = filename
                 result = show_match.search(filename)
                 if result:
@@ -327,8 +332,8 @@ class TVDB(object):
                     self.log.debug("filename=%s unable to parse regex!", filename)
                     continue
 
-                self.log.debug('Found (%s): BasePath=%s Filename=%s Basename=%s Extension=%s',
-                               fullpath, basepath, filename, basename, extension)
+                #self.log.debug('Found (%s): BasePath=%s Filename=%s Basename=%s Extension=%s',
+                #               fullpath, video_subdir, filename, basename, extension)
 
                 md5value = self.md5file(fullpath)
                 if md5value:
@@ -441,7 +446,7 @@ class TVDB(object):
                 self.log.debug("enzyme decoded into: %s", mkv)
         except Exception as e:
             self.log.error("Could not open (%s) with enzyme for getting video info! %s",
-                           filename, e)
+                           path, e)
             return info
 
         try:
@@ -516,14 +521,14 @@ def printtvs(results=[], showkey=False):
 
     if showkey:
         sys.stdout.write("{0:<32s}  ".format("md5sum"))
-    sys.stdout.write("{0:<50s}  {1:<50s}  {2:<7s}  {3:<10s}  {4:<3s}  {5:<18s}  {6:<10s}  {7:<6s}  {8:<15s}  {9:<15s}\n".format("Show","Title","S/E","Duration","Ext","Resolution","Bitrate","AudioC","Formats","Size"))
+    sys.stdout.write("{0:<35s}  {1:<45s}  {2:<7s}  {3:<10s}  {4:<3s}  {5:<18s}  {6:<10s}  {7:<6s}  {8:<15s}  {9:<15s}\n".format("Show","Title","S/E","Duration","Ext","Resolution","Bitrate","AudioC","Formats","Size"))
     for key in sorted(rs.keys()):
         m = rs[key]
         s_e = "%s / %s" % (m['season'], m['episode'])
         if showkey:
             sys.stdout.write("{0:<32s}  ".format(m['md5sum']))
         try:
-            sys.stdout.write( "{0:<50s}  {1:<50s}  {2:<7s}".format(m['show'], m['title'].replace(".", " "), s_e) )
+            sys.stdout.write( "{0:<35s}  {1:<45s}  {2:<7s}".format(m['show'], m['title'].replace(".", " "), s_e) )
         except Exception as e:
             logging.warning("Unable to print for show=%s.%s err=%s", m['show'], s_e, e)
 
@@ -557,22 +562,23 @@ def printtvs(results=[], showkey=False):
 
 def main(options):
     db = TVDB(filename=options.dbfile)
-    logging.info("Loaded %d tvs from database=%s",
-                 len(db.db), options.dbfile)
+    db.log = options.log
+    options.log.info("Loaded %d tvs from database=%s",
+                     len(db.db), options.dbfile)
 
     if options.delete:
         db.remove(md5sum=options.delete)
+        db.save()
         
-
     if options.scan:
-        db.scan(options.startdir, limit=options.limit)
+        db.scan(options.startdir, check=options.checkvideos, limit=options.limit)
+        db.save()
 
     if options.search:
         results = db.search(options.search.lower(), options.season, options.episode)
         if len(results) > 0:
             printtvs(results, options.showkey)
         
-    db.save()
     return
 
 
@@ -590,18 +596,16 @@ if __name__ == '__main__':
     parser.add_option("-c", "--check-videos", dest="checkvideos", action="store_true",help="Check video MD5's to find bad ones [%default]",default=False)
     parser.add_option("--scan", dest="scan", action="store_true", help="Scan files in addition to search db [%default]", default=False)
     parser.add_option("--key", dest="showkey", action="store_true", help="Show Key value [%default]", default=False)
-    group = optparse.OptionGroup(parser, "Debug Options")
-    group.add_option("--debug", action="store_true",help="Print debug information")
-    parser.add_option_group(group)
     (options, args) = parser.parse_args()
 
-    logger = logging.getLogger('')
+    logger = logging.getLogger('lookup')
     level = options.log_level.upper()
     logger.setLevel(getattr(logging, level))
     stderr_handler = logging.StreamHandler()
-    formatter = logging.Formatter("[%(process)d] %(name)s - %(levelname)s - %(message)s")
+    formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
     stderr_handler.setFormatter(formatter)
     logger.addHandler(stderr_handler)
+    options.log = logger
 
     enzyme_logger = logging.getLogger("enzyme")
     enzyme_logger.setLevel(logging.ERROR)
