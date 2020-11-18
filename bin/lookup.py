@@ -64,10 +64,20 @@ class MovieDB(JsonDB):
             self.save()
         return
 
-    def search(self, string):
+    def search(self, string="", resolution=None):
         results = []
         for md5sum, details in self.db.iteritems():
-            if string.lower() in details['title'].lower():
+            append = True
+            if string != "" and string.lower() not in details['title'].lower():
+                append = False
+            if resolution:
+                mkvinfo = details.get("mkvinfo", {})
+                videos = mkvinfo.get("video")
+                if len(videos) > 0:
+                    res = videos[0].get("resname", "")
+                    if res != resolution:
+                        append = False
+            if append:
                 results.append(details)
         final_results = []
         for r in results:
@@ -290,10 +300,10 @@ def printmovies(results=[], showkey=False):
 
         extension = m['filename'][-3:]
         if m['mkvinfo']:
-            resolution = "n/a"
-            resname = "n/a"
-            bitrate = "n/a"
-            channels = -1
+            resolution = "--"
+            resname = "--"
+            bitrate = "--"
+            channels = "--"
             mkvinfo = m['mkvinfo']
             video = mkvinfo.get('video', [])
             audio = mkvinfo.get('audio', [])
@@ -329,8 +339,8 @@ def main(options):
     if options.scan:
         db.scan(options.startdir)
 
-    if options.search:
-        results = db.search(options.search.lower())
+    if options.search or options.s_res:
+        results = db.search(options.search.lower(), resolution=options.s_res)
         if len(results) > 0:
             printmovies(results, options.showkey)
         
@@ -340,7 +350,7 @@ def main(options):
 if __name__ == '__main__':
     usage = "Usage: %prog [options] arg"
     parser = optparse.OptionParser(usage, version="%prog 1.0")
-    parser.add_option("-s","--search", dest="search", type="string",help="Search string [%default]", default=None)
+    parser.add_option("-s","--search", dest="search", type="string",help="Search string [%default]", default="")
     parser.add_option("--resolution", dest="s_res", type="string", help="Search for files with [%default] resolution", default=None)
     parser.add_option("-d","--delete", dest="delete", type="string",help="Delete hash key from database [%default]", default=None)
     parser.add_option("--db", dest="dbfile", type="string", help="Database file [%default]", default="/d1/movies/db.json")
