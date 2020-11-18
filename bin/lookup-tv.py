@@ -10,103 +10,12 @@ import logging
 import enzyme
 import hashlib
 import json
+from jsondb import JsonDB
 import datetime
 from pymediainfo import MediaInfo
-#from hachoir_core.cmd_line import unicodeFilename
-#from hachoir_core.i18n import getTerminalCharset
-#from hachoir_metadata import extractMetadata
-#from hachoir_parser import createParser
 
 
-class Locker():
-    def __init__(self, filename, clean=True):
-        import os
-        self.filename = filename
-        self.my_pid = os.getpid()
-        self.clean = clean
-        self.read()
-        self.write()
-
-    def exist(self):
-        return os.path.isfile(filename)
-
-    def is_running(self, pid):
-        try:
-            pgid = os.getpgid(pid)
-            return True
-        except:
-            pass
-        return False
-
-    def remove(self):
-        try:
-            os.unlink(self.filename)
-            return True
-        except Exception as err:
-            logging.error("Unable to remove pid file=%s: %s", self.filename, err)
-        return False
-
-    def write(self):
-        if not self.my_pid:
-            logging.error("NO PID detected!")
-            return False
-        try:
-            with open(self.filename, 'w') as fh:
-                fh.write(self.my_pid)
-            return True
-        except Exception as err:
-            logging.error("Error writing file=%s: %s", self.filename, err)
-        return False
-
-    def read(self):
-        if self.exist():
-            try:
-                filepid = open(self.filename).read()
-                if self.is_running(filepid):
-                    return filepid
-                else:
-                    logging.warning("PID=%s in file=%s is not running!", filepid, self.filename)
-                    if self.clean:
-                        self.remove()
-            except Exception as err:
-                logging.error("Error opening file=%s: %s", self.filename, err)
-        return self.my_pid
-
-class TVDB(object):
-
-    def __init__(self, filename):
-        self.log = logging.getLogger('TVDB')
-        self.filename = filename
-        self.db = {}
-        self.path_index = {}
-        self.write_immediate = False
-        self.open = False
-        self.save_interval = 20  # Every 100 new entries, lets save the database.
-        self.load(filename)
-
-    def _datetimehandler(self, o):
-        if isinstance(o, datetime.datetime):
-            return o.__str__()
-
-    def load(self, filename=None):
-        filename = filename or self.filename
-        if os.path.isfile(filename):
-            try:
-                with open(filename, 'r') as fh:
-                    self.db = json.load(fh)
-                self.open = True
-                self.index()
-            except Exception as e:
-                self.log.error("unable to read db=%s: %s", filename, e)
-        return self.open
-   
-    def index(self):
-        # Build path index
-        if not self.open:
-            return False
-        for md5, details in self.db.iteritems():
-            self.path_index[details['filename']] = md5
-        return True
+class TVDB(JsonDB):
 
     def name(self, show, season, episode):
         return "%s.s%02de%02d" % (show, season, episode)
@@ -187,103 +96,6 @@ class TVDB(object):
             final_results.append(r)
         return final_results
   
-    def check_hash(self, path):
-        md5value = self.md5file(path)
-        if self.path_index[path] == md5value:
-            return True
-        return False
-    
-    def md5filename(self, path):
-        splits = path.split('.')
-        base = ".".join(splits[0:-1])
-        md5file = base + ".md5"
-        return md5file
-    
-    def md5file(self, path):
-        # given a path of a tv, pull the md5 from the file
-        md5file = self.md5filename(path)
-        if os.path.isfile(md5file):
-            try:
-                with open(md5file, 'r') as fh:
-                    md5value = fh.readline().split()[0].lower()
-                return md5value
-            except Exception as e:
-                self.log.error("Unable to get md5file=%s: %s", md5file, e)
-        else:
-            # Generate missing md5 file.
-            return self.generate_checksum(path)
-        return None
-
-    def md5Checksum(self, path):
-        try:
-            m = hashlib.md5()
-            with open(path, 'rb') as fh:
-                while True:
-                    data = fh.read(8192)
-                    if not data:
-                        break
-                    m.update(data)
-            return m.hexdigest()
-        except Exception as e:
-            self.log.error("Unable to compute checksum of (%s): %s", path, e)
-        return None
-
-    def generate_checksum(self, path):
-        filename = os.path.basename(path)
-        self.log.info('Generating hash for (%s)', filename)
-        md5value = self.md5Checksum(path)
-        if not md5value:
-            return None
-        md5file = self.md5filename(path)
-        try:
-            with open(md5file, 'w') as fh:
-                fh.write(md5value + "\t" + filename)
-            self.log.info('Wrote computed value (%s) for filename (%s)',
-                          md5value, os.path.basename(md5file))
-        except Exception as e:
-            self.log.error("Unable to write checksum file (%s): %s",
-                           md5file, e)
-        return md5value
-
-    def get_path(self, path):
-        if path in self.path_index:
-            md5 = self.path_index[path]
-            return self.db[md5]
-        return None
- 
-    def save(self, filename=None):
-        filename = filename or self.filename
-        lockfile = filename + ".lock"
-        if os.path.isfile(lockfile):
-            if (time.time() - os.path.getmtime(lockfile)) > 200:
-                self.log.warning("tvdb: lockfile=%s is stale, removing!", lockfile)
-                os.unlink(lockfile)
-            else:
-                sys.stdout.write("tvdb: locked, waiting..")
-                while True:
-                    sys.stdout.write(".")
-                    for t in range(1, 100):
-                        time.sleep(.1)
-                    if not os.path.isfile(lockfile):
-                        break
-
-        try:
-            open(lockfile, 'w').write("locked")
-            self.log.info("tvdb: saving filename=%s with (%d) entries",
-                          filename, len(self.db))
-            with open(filename, 'w') as fh:
-                json.dump(self.db, fh, default=self._datetimehandler)
-        except Exception as e:
-            self.log.error("unable to write db=%s: %s", filename, e)
-        os.unlink(lockfile)
-        return
-
-    def clean_invalid(self):
-        for e, d in self.db.iteritems():
-            if not d.get('valid', True):
-                self.remove(md5sum=e)
-        return
-
     def scan(self, startdir,
              extensions=['mkv', 'avi', 'mp4', 'mpeg', 'mpg', 'ts', 'flv', 'iso', 'm4v'],
              ext_skip=['md5','idx','sub','srt','smi','nfo','nfo-orig','sfv','txt','json','jpeg','jpg','bak'],
@@ -303,11 +115,6 @@ class TVDB(object):
                 if limit > 0 and found >= limit:
                     self.log.info("SCAN LIMIT=%d SET, Stopping..", limit)
                     break
-
-                if found % self.save_interval == 0:
-                    self.log.debug("Intermediate DB Save, found=%d interval=%d",
-                                   found, self.save_interval)
-                    self.save()
 
                 fullpath = "%s/%s" % (video_subdir, filename)
                 extension = filename.split('.')[-1].lower()
@@ -366,6 +173,11 @@ class TVDB(object):
                          filesize=self.bytes_to_human(filesize),
                          mkvinfo=mediainfo)
 
+                if found % self.save_interval == 0:
+                    self.log.debug("Intermediate DB Save, found=%d interval=%d",
+                                   found, self.save_interval)
+                    self.save()
+
         # remove files that have been deleted
         self.clean_invalid()
         return
@@ -378,7 +190,7 @@ class TVDB(object):
             mi = MediaInfo.parse(path)
         except Exception as e:
             self.log.error("MediaInfo threw error reading path=%s: %s", path, e)
-            return self.mkvinfo(path)
+            return {}
 
         for t in mi.tracks:
             if t.track_type == 'General':
@@ -436,80 +248,6 @@ class TVDB(object):
 
         return info
 
-    def mkvinfo(self, path):
-        info = { 'title': None, 'duration': None, 'chapters': None, 'video': [], 'audio': [] }
-        video = { 'height': None, 'width': None, 'resolution': None, 'resname': None, 'codec': None, 'duration': None }
-        audio = { 'freq': None, 'channels': None, 'language': None, 'bit_depth': None, 'codec': None }
-        try:
-            with open(path,'rb') as fh:
-                mkv = enzyme.MKV(fh)
-                self.log.debug("enzyme decoded into: %s", mkv)
-        except Exception as e:
-            self.log.error("Could not open (%s) with enzyme for getting video info! %s",
-                           path, e)
-            return info
-
-        try:
-            info['title'] = mkv.info.title
-            info['duration'] = str(mkv.info.duration)
-            info['chapters'] = [c.start for c in mkv.chapters]
-
-            for v in mkv.video_tracks:
-                vt = dict(video)
-                vt['height'] = v.height
-                vt['width'] = v.width
-                vt['resolution'] = "%dx%d" % (v.width,v.height)
-                if v.interlaced:
-                    scantype = 'i'
-                else:
-                    scantype = 'p'
-                if 1081 > v.height > 720:
-                    vt['resname'] = '1080%s' % scantype
-                elif 721 > v.height > 480:
-                    vt['resname'] = '720%s' % scantype
-                elif 481 > v.height > 320:
-                    vt['resname'] = '320%s' % scantype
-                else:
-                    vt['resname'] = '%d%s' % (v.height,scantype)
-                vt['codec'] = v.codec_id
-                info['video'].append( vt )
-
-            for a in mkv.audio_tracks:
-                at = dict(audio)
-                at['codec'] = a.codec_id
-                at['bit_depth'] = a.bit_depth
-                at['language'] = a.language
-                at['channels'] = a.channels
-                at['freq'] = a.sampling_frequency
-                info['audio'].append( at )
-        except Exception as e:
-            self.log.error("Unable to parse mkv! %s",e)
-        return info
-
-    def speed_to_human(self, bps, precision=2):
-        mbps = bps/1000000.0
-        return "%.*fMb/s" %(precision, mbps)
-
-    def bytes_to_human(self, size, precision=2):
-        suffixes = ['B', 'KB', 'MB', 'GB', 'TB']
-        suffixIndex = 0
-        while size > 1024 and suffixIndex < 4:
-            suffixIndex += 1    # increment the index of the suffix
-            size = size/1024.0  # apply the division
-        return "%.*f%s" % (precision, size, suffixes[suffixIndex])
-
-    def ms_to_human(self, ms):
-        seconds = float(ms) / 1000
-        minutes, seconds = divmod(seconds, 60)
-        hours, minutes = divmod(minutes, 60)
-        days, hours = divmod(hours, 24)
-        return "%d:%02d:%02d" % (hours, minutes, seconds)
-
-    def close(self):
-        self.save()
-        self.open = False
-        return
-
 
 def printtvs(results=[], showkey=False):
     # sort
@@ -537,7 +275,7 @@ def printtvs(results=[], showkey=False):
             resolution = "--"
             resname = "--"
             bitrate = "--"
-            channels = -1
+            channels = "--"
             mkvinfo = m['mkvinfo']
             video = mkvinfo.get('video', [])
             audio = mkvinfo.get('audio', [])
