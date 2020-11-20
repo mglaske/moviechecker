@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 import os
 import sys
-import fnmatch
 import time
-import re
 import logging
 import hashlib
 import json
@@ -37,7 +35,7 @@ class JsonDB(object):
             except Exception as e:
                 self.log.error("unable to read db=%s: %s", filename, e)
         return self.open
-   
+
     def index(self):
         # Build path index
         if not self.open:
@@ -73,7 +71,7 @@ class JsonDB(object):
             self.db.pop(e)
         for e in remove_paths:
             self.path_index.pop(e)
-                    
+
         if self.write_immediate:
             self.save()
         return
@@ -83,13 +81,13 @@ class JsonDB(object):
         if self.path_index[path] == md5value:
             return True
         return False
-    
+
     def md5filename(self, path):
         splits = path.split('.')
         base = ".".join(splits[0:-1])
         md5file = base + ".md5"
         return md5file
-    
+
     def md5file(self, path):
         # given a path, pull the md5 from the file
         md5file = self.md5filename(path)
@@ -141,7 +139,7 @@ class JsonDB(object):
             md5 = self.path_index[path]
             return self.db[md5]
         return None
- 
+
     def save(self, filename=None):
         filename = filename or self.filename
         lockfile = filename + ".lock"
@@ -180,15 +178,15 @@ class JsonDB(object):
         return
 
     def speed_to_human(self, bps, precision=2):
-        mbps = bps/1000000.0
-        return "%.*fMb/s" %(precision, mbps)
+        mbps = bps / 1000000.0
+        return "%.*fMb/s" % (precision, mbps)
 
     def bytes_to_human(self, size, precision=2):
         suffixes = ['B', 'KB', 'MB', 'GB', 'TB']
         suffixIndex = 0
         while size > 1024 and suffixIndex < 4:
             suffixIndex += 1    # increment the index of the suffix
-            size = size/1024.0  # apply the division
+            size = size / 1024.0  # apply the division
         return "%.*f%s" % (precision, size, suffixes[suffixIndex])
 
     def ms_to_human(self, ms):

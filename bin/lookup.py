@@ -1,17 +1,12 @@
 #!/usr/bin/env python
 
-import os,sys,fnmatch,time
-import optparse,logging
-import enzyme
-import hashlib
-import json
+import os
+import sys
+import optparse
+import logging
 from jsondb import JsonDB
-import datetime
+from tables import Printer as TP
 from pymediainfo import MediaInfo
-#from hachoir_core.cmd_line import unicodeFilename
-#from hachoir_core.i18n import getTerminalCharset
-#from hachoir_metadata import extractMetadata
-#from hachoir_parser import createParser
 
 
 class MovieDB(JsonDB):
@@ -59,7 +54,7 @@ class MovieDB(JsonDB):
             self.db.pop(e)
         for e in remove_paths:
             self.path_index.pop(e)
-                    
+
         if self.write_immediate:
             self.save()
         return
@@ -89,10 +84,10 @@ class MovieDB(JsonDB):
                 self.log.warning("%s has a bad checksum!", r['filename'])
             final_results.append(r)
         return final_results
-  
+
     def scan(self, startdir,
              extensions=['mkv', 'avi', 'mp4', 'mpeg', 'mpg', 'ts', 'flv', 'iso', 'm4v'],
-             ext_skip=['md5','idx','sub','srt','smi','nfo','sfv','txt','json','jpeg','jpg','bak'],
+             ext_skip=['md5', 'idx', 'sub', 'srt', 'smi', 'nfo', 'sfv', 'txt', 'json', 'jpeg', 'jpg', 'bak'],
              check=False):
         """ Scan startdir for files that end in extensions,
             if check is set, check the md5 file against the actual md5
@@ -133,7 +128,7 @@ class MovieDB(JsonDB):
                     self.log.debug('Found Hashfile: filename=%s MD5Hash=%s',
                                    filename, md5value)
                     if check:
-                        checkvalue = self.md5Checksum(video).lower()
+                        checkvalue = self.md5Checksum(filename).lower()
                         if md5value != checkvalue:
                             self.log.error("BAD: Hash mismatch for file=%s "
                                            "stored_hash=%s computed_hash=%s!",
@@ -143,7 +138,7 @@ class MovieDB(JsonDB):
                                           md5value, checkvalue)
                 else:
                     md5value = self.generate_checksum(fullpath)
-                
+
                 if md5value in self.db:
                     self.db[md5value]['valid'] = True
                     continue
@@ -163,9 +158,9 @@ class MovieDB(JsonDB):
         return
 
     def mediainfo(self, path):
-        info = { 'title': None, 'duration': None, 'chapters': None, 'video': [], 'audio': [] }
-        video = { 'height': None, 'width': None, 'resolution': None, 'resname': None, 'codec': None, 'duration': None, 'bit_rate': None, 'bit_depth': None, 'aspect_ratio': None }
-        audio = { 'freq': None, 'channels': None, 'language': None, 'bit_depth': None, 'codec': None }
+        info = {'title': None, 'duration': None, 'chapters': None, 'video': [], 'audio': []}
+        video = {'height': None, 'width': None, 'resolution': None, 'resname': None, 'codec': None, 'duration': None, 'bit_rate': None, 'bit_depth': None, 'aspect_ratio': None}
+        audio = {'freq': None, 'channels': None, 'language': None, 'bit_depth': None, 'codec': None}
         try:
             mi = MediaInfo.parse(path)
         except Exception as e:
@@ -181,12 +176,12 @@ class MovieDB(JsonDB):
                 try:
                     # note, display_aspect_ratio = 1.791 , eg 16:9
                     vt['aspect_ratio'] = t.other_display_aspect_ratio[0]
-                except:
+                except IndexError:
                     vt['aspect_ratio'] = 'n/a'
                 vt['height'] = t.height
                 vt['width'] = t.width
                 vt['resolution'] = "%dx%d" % (t.width, t.height)
-                if 'lace' in ( t.scan_type or "" ):
+                if 'lace' in (t.scan_type or ""):
                     scantype = 'i'
                 else:
                     scantype = 'p'
@@ -212,10 +207,10 @@ class MovieDB(JsonDB):
                     br = None
                 try:
                     vt['bit_rate'] = self.speed_to_human(br)
-                except:
+                except Exception:
                     vt['bit_rate'] = "n/a"
 
-                info['video'].append( vt )
+                info['video'].append(vt)
             if t.track_type == "Audio":
                 at = dict(audio)
                 at['codec'] = t.codec_family
@@ -224,86 +219,27 @@ class MovieDB(JsonDB):
                 at['language'] = t.language
                 at['channels'] = t.channel_s
                 at['freq'] = t.sampling_rate
-                info['audio'].append( at )
+                info['audio'].append(at)
 
-        return info
-
-    def mkvinfo(self, path):
-        info = { 'title': None, 'duration': None, 'chapters': None, 'video': [], 'audio': [] }
-        video = { 'height': None, 'width': None, 'resolution': None, 'resname': None, 'codec': None, 'duration': None }
-        audio = { 'freq': None, 'channels': None, 'language': None, 'bit_depth': None, 'codec': None }
-        try:
-            with open(path,'rb') as fh:
-                mkv = enzyme.MKV(fh)
-                self.log.debug("enzyme decoded into: %s", mkv)
-        except Exception as e:
-            self.log.error("Could not open (%s) with enzyme for getting video info! %s",
-                           path, e)
-            return info
-
-        try:
-            info['title'] = mkv.info.title
-            info['duration'] = str(mkv.info.duration)
-            info['chapters'] = [c.start for c in mkv.chapters]
-
-            for v in mkv.video_tracks:
-                vt = dict(video)
-                vt['height'] = v.height
-                vt['width'] = v.width
-                vt['resolution'] = "%dx%d" % (v.width,v.height)
-                if v.interlaced:
-                    scantype = 'i'
-                else:
-                    scantype = 'p'
-                if 1081 > v.height > 720:
-                    vt['resname'] = '1080%s' % scantype
-                elif 721 > v.height > 480:
-                    vt['resname'] = '720%s' % scantype
-                elif 481 > v.height > 320:
-                    vt['resname'] = '320%s' % scantype
-                else:
-                    vt['resname'] = '%d%s' % (v.height,scantype)
-                vt['codec'] = v.codec_id
-                info['video'].append( vt )
-
-            for a in mkv.audio_tracks:
-                at = dict(audio)
-                at['codec'] = a.codec_id
-                at['bit_depth'] = a.bit_depth
-                at['language'] = a.language
-                at['channels'] = a.channels
-                at['freq'] = a.sampling_frequency
-                info['audio'].append( at )
-        except Exception as e:
-            self.log.error("Unable to parse mkv! %s",e)
         return info
 
 
 def printmovies(results=[], showkey=False):
-    # sort
-    rs = {}
-    for m in results:
-        newkey = "%s;%s" % (m['title'], m['md5sum'])
-        rs[newkey] = m
-
+    columns = ["Genre", "Title", "Year", "Duration", "EXT", "Resolution",
+               "Bitrate", "AudioC", "Formats", "Size"]
     if showkey:
-        sys.stdout.write("{0:<32s}  ".format("md5sum"))
-    sys.stdout.write("{0:<12s}  {1:<50s}  {2:<5s}  {3:<10s}  {4:<3s}  {5:<18s}  {6:<10s}  {7:<6s}  {8:<15s}  {9:<15s}\n".format("Genre","Title","Year","Duration","Ext","Resolution","Bitrate","AudioC","Formats","Size"))
-    for key in sorted(rs.keys()):
-        m = rs[key]
-        if showkey:
-            sys.stdout.write("{0:<32s}  ".format(m['md5sum']))
-        try:
-            sys.stdout.write( "{0:<12s}  {1:<50s}  {2:<5s}".format(m['genre'], m['title'].replace(".", " "), m['year']) )
-        except Exception as e:
-            logging.warning("Unable to print for title=%s err=%s", m['title'], e)
+        columns.insert(0, "md5sum")
+    t = TP()
+    t.set_header(columns, justification="<")
 
-        extension = m['filename'][-3:]
+    for m in results:
+        title = m["title"].replace(".", " ")
+        extension = m['filename'][-3:].upper()
+        filesize = m.get("filesize", -1)
+        sortkey = "%s;%s" % (m['title'], m['md5sum'])
+        resolution, resname, bitrate = "--", "--", "--"
+        channels, aformat, duration = "--", "--", "--"
         if m['mkvinfo']:
-            resolution = "--"
-            resname = "--"
-            bitrate = "--"
-            channels = "--"
             mkvinfo = m['mkvinfo']
             video = mkvinfo.get('video', [])
             audio = mkvinfo.get('audio', [])
@@ -317,12 +253,24 @@ def printmovies(results=[], showkey=False):
                 channels = str(channels).replace("Object Based / ", "")
             formats = [x.get('format') for x in audio if x.get('format')]
             aformat = "/".join(formats)
-            duration = str(mkvinfo.get('duration','--')).split('.')[0]
+            duration = str(mkvinfo.get('duration', '--')).split('.')[0]
 
-            res = "%s (%s)" % (resolution, resname)
-            sys.stdout.write("  {0:<10s}  {1:<3s}  {2:<18s}  {3:<10s}  {4:<6s}  {5:<15s}  {6:<15s}".format(duration, extension.upper(), res, bitrate, channels, aformat, m.get('filesize', -1)))
+        row = []
+        if showkey:
+            row.append(m["md5sum"])
+        row.append(m["genre"])
+        row.append(title)
+        row.append(m["year"])
+        row.append(duration)
+        row.append(extension)
+        row.append("%s (%s)" % (resolution, resname))
+        row.append(bitrate)
+        row.append(channels)
+        row.append(aformat)
+        row.append(filesize)
+        t.add_data(row, key=sortkey)
 
-        sys.stdout.write("\n")
+    sys.stdout.write("%s\n" % t.dump(header_underline=True))
     return
 
 
@@ -334,7 +282,6 @@ def main(options):
 
     if options.delete:
         db.remove(md5sum=options.delete)
-        
 
     if options.scan:
         db.scan(options.startdir)
@@ -343,20 +290,21 @@ def main(options):
         results = db.search(options.search.lower(), resolution=options.s_res)
         if len(results) > 0:
             printmovies(results, options.showkey)
-        
+
     db.save()
-    return
+    exit(0)
+
 
 if __name__ == '__main__':
     usage = "Usage: %prog [options] arg"
     parser = optparse.OptionParser(usage, version="%prog 1.0")
-    parser.add_option("-s","--search", dest="search", type="string",help="Search string [%default]", default="")
+    parser.add_option("-s", "--search", dest="search", type="string", help="Search string [%default]", default="")
     parser.add_option("--resolution", dest="s_res", type="string", help="Search for files with [%default] resolution", default=None)
-    parser.add_option("-d","--delete", dest="delete", type="string",help="Delete hash key from database [%default]", default=None)
+    parser.add_option("-d", "--delete", dest="delete", type="string", help="Delete hash key from database [%default]", default=None)
     parser.add_option("--db", dest="dbfile", type="string", help="Database file [%default]", default="/d1/movies/db.json")
-    parser.add_option("--start-dir",dest="startdir", type="string",metavar="STARTDIR",help="Start Directory to start processing movies [%default]",default="/d1/movies/")
-    parser.add_option("-l", "--log-level", dest="log_level", type="string",metavar="LEVEL",help="change log level [%default]",default="info")
-    parser.add_option("-c", "--check-videos", dest="checkvideos", action="store_true",help="Check video MD5s to find bad ones [%default]", default=False)
+    parser.add_option("--start-dir", dest="startdir", type="string", help="Start Directory to start processing movies [%default]", default="/d1/movies/")
+    parser.add_option("-l", "--log-level", dest="log_level", type="string", help="change log level [%default]", default="info")
+    parser.add_option("-c", "--check-videos", dest="checkvideos", action="store_true", help="Check video MD5s to find bad ones [%default]", default=False)
     parser.add_option("--scan", dest="scan", action="store_true", help="Scan files in addition to search db [%default]", default=False)
     parser.add_option("--key", dest="showkey", action="store_true", help="Show Key value [%default]", default=False)
     (options, args) = parser.parse_args()
@@ -370,8 +318,4 @@ if __name__ == '__main__':
     logger.addHandler(stderr_handler)
     options.log = logger
 
-    enzyme_logger = logging.getLogger("enzyme")
-    enzyme_logger.setLevel(logging.ERROR)
-
     main(options)
-    exit(0)

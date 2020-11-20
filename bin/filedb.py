@@ -1,12 +1,7 @@
 #!/usr/bin/env python
 import os
-import sys
-import fnmatch
-import time
-import re
 import logging
 import hashlib
-import json
 import sqlite3
 import datetime
 
@@ -47,7 +42,7 @@ class FileDB(object):
         except Exception as e:
             self.log.error("unable to read db=%s: %s", filename, e)
         return self.open
-   
+
     def add(self, struct, filename, md5sum=""):
         if not md5sum:
             md5sum = self.md5File(filename)
@@ -78,7 +73,7 @@ class FileDB(object):
         else:
             self.log.error("db: remove hash=%s failed, no such hash!", md5sum)
         return False
-                
+
         if self.write_immediate:
             self.connection.commit()
         return
@@ -90,13 +85,13 @@ class FileDB(object):
             if details[0][0] == md5value:
                 return True
         return False
-    
+
     def md5filename(self, path):
         splits = path.split('.')
         base = ".".join(splits[0:-1])
         md5file = base + ".md5"
         return md5file
-    
+
     def md5file(self, path):
         # given a path, pull the md5 from the file
         md5file = self.md5filename(path)
@@ -149,7 +144,7 @@ class FileDB(object):
             self.cursor.execute(sql, (path,))
             return self.cursor.fetchone()
         except Exception as e:
-            self.log.error("Unable to fetch hash=%s: %s", md5sum, e)
+            self.log.error("Unable to fetch path=%s: %s", path, e)
         return None
 
     def get_hash(self, md5sum):
@@ -160,17 +155,17 @@ class FileDB(object):
         except Exception as e:
             self.log.error("Unable to fetch hash=%s: %s", md5sum, e)
         return None
- 
+
     def speed_to_human(self, bps, precision=2):
-        mbps = bps/1000000.0
-        return "%.*fMb/s" %(precision, mbps)
+        mbps = bps / 1000000.0
+        return "%.*fMb/s" % (precision, mbps)
 
     def bytes_to_human(self, size, precision=2):
         suffixes = ['B', 'KB', 'MB', 'GB', 'TB']
         suffixIndex = 0
         while size > 1024 and suffixIndex < 4:
             suffixIndex += 1    # increment the index of the suffix
-            size = size/1024.0  # apply the division
+            size = size / 1024.0  # apply the division
         return "%.*f%s" % (precision, size, suffixes[suffixIndex])
 
     def ms_to_human(self, ms):
