@@ -38,9 +38,9 @@ class MovieDB(JsonDB):
         remove_paths = []
         if md5sum:
             if md5sum in self.db:
-                self.log.info("movideb: removing md5=%s title=%s year=%s",
-                              md5sum, self.db[md5sum]['title'],
-                              self.db[md5sum]['year'])
+                self.log.warning("moviedb: removing md5=%s title=%s year=%s",
+                                 md5sum, self.db[md5sum]['title'],
+                                 self.db[md5sum]['year'])
                 remove.append(md5sum)
                 remove_paths.append(self.db[md5sum]['filename'])
         if title and year:
@@ -59,7 +59,7 @@ class MovieDB(JsonDB):
             self.save()
         return
 
-    def search(self, string="", resolution=None):
+    def search(self, string="", resolution=None, year=None):
         results = []
         for md5sum, details in self.db.iteritems():
             append = True
@@ -72,6 +72,8 @@ class MovieDB(JsonDB):
                     res = videos[0].get("resname", "")
                     if res != resolution:
                         append = False
+            if year and details.get("year", 0) != year:
+                append = False
             if append:
                 results.append(details)
         final_results = []
@@ -295,7 +297,7 @@ def main(options):
         db.scan(options.startdir)
 
     if options.search or options.s_res:
-        results = db.search(options.search.lower(), resolution=options.s_res)
+        results = db.search(options.search.lower(), resolution=options.s_res, year=options.s_year)
         if len(results) > 0:
             printmovies(results, options.showkey, options.showpath)
 
@@ -308,6 +310,7 @@ if __name__ == '__main__':
     parser = optparse.OptionParser(usage, version="%prog 1.0")
     parser.add_option("-s", "--search", dest="search", type="string", help="Search string [%default]", default="")
     parser.add_option("--resolution", dest="s_res", type="string", help="Search for files with [%default] resolution", default=None)
+    parser.add_option("--year", dest="s_year", type="string", help="Search for files with [%default] year", default=None)
     parser.add_option("-d", "--delete", dest="delete", type="string", help="Delete hash key from database [%default]", default=None)
     parser.add_option("--db", dest="dbfile", type="string", help="Database file [%default]", default="/d1/movies/db.json")
     parser.add_option("--start-dir", dest="startdir", type="string", help="Start Directory to start processing movies [%default]", default="/d1/movies/")
