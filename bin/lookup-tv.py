@@ -242,12 +242,14 @@ class TVDB(JsonDB):
         return info
 
 
-def printtvs(results=[], showkey=False):
+def printtvs(results=[], showkey=False, showpath=False):
     columns = ["Show", "Title", "S/E", "Duration", "Ext", "Resolution",
                "Bitrate", "AudioC", "Formats", "Size"]
     t = TP()
     if showkey:
         columns.insert(0, "md5sum")
+    if showpath:
+        columns.append("Path")
     t.set_header(columns)
     t.justification["Duration"] = ">"
     t.justification["Bitrate"] = ">"
@@ -295,6 +297,8 @@ def printtvs(results=[], showkey=False):
         row.append(channels)
         row.append(aformat)
         row.append(filesize)
+        if showpath:
+            row.append(m["filename"])
         t.add_data(row, key=sortkey)
 
     sys.stdout.write(t.dump(header_underline=True, padding="  |  "))
@@ -316,7 +320,7 @@ def main(options):
     if options.search:
         results = db.search(options.search.lower(), options.season, options.episode)
         if len(results) > 0:
-            printtvs(results, options.showkey)
+            printtvs(results, options.showkey, options.showpath)
 
     db.close()
     exit(0)
@@ -336,6 +340,7 @@ if __name__ == '__main__':
     parser.add_option("-c", "--check-videos", dest="checkvideos", action="store_true", help="Check video MD5's to find bad ones [%default]", default=False)
     parser.add_option("--scan", dest="scan", action="store_true", help="Scan files in addition to search db [%default]", default=False)
     parser.add_option("--key", dest="showkey", action="store_true", help="Show Key value [%default]", default=False)
+    parser.add_option("--path", dest="showpath", action="store_true", help="Show Filename Path [%default]", default=False)
     (options, args) = parser.parse_args()
 
     logger = logging.getLogger('lookup')
