@@ -231,6 +231,9 @@ def printmovies(results=[], showkey=False):
         columns.insert(0, "md5sum")
     t = TP()
     t.set_header(columns, justification="<")
+    t.justification["Duration"] = ">"
+    t.justification["Formats"] = ">"
+    t.justification["Size"] = ">"
 
     for m in results:
         title = m["title"].replace(".", " ")
@@ -270,7 +273,7 @@ def printmovies(results=[], showkey=False):
         row.append(filesize)
         t.add_data(row, key=sortkey)
 
-    sys.stdout.write("%s\n" % t.dump(header_underline=True))
+    sys.stdout.write("%s\n" % t.dump(header_underline=True, padding="  |  "))
     return
 
 

@@ -20,6 +20,9 @@ class Printer():
         self.data = {}
         return
 
+    def add_data(self, row_values, key=None):
+        return self.add_row(row_values, key)
+
     def add_row(self, row_values, key=None):
         """ Add a row of data, with an optional key for sorting """
         if len(row_values) != self.columns:
@@ -62,27 +65,28 @@ class Printer():
         self.header = header
         self.columns = len(header)
         for h in header:
-            self.lengths[h] = 0
+            self.lengths[h] = len(h)
             self.justification[h] = justification
         self.data = {}
         return
 
-    def dump(self, sort=True, reverse=False, header_underline=False, padding=2):
+    def dump(self, sort=True, reverse=False, header_underline=False, padding="  "):
         """ Dump the output """
+        if header_underline and padding == "  ":
+            padding = " | "
         output = self.dump_header(header_underline, padding)
         output += self.dump_data(sort, reverse, padding)
         return output
 
-    def dump_header(self, header_underline=False, padding=2):
+    def dump_header(self, header_underline=False, padding="  "):
         """ Dump out just the header """
         fields = []
-        pad = " " * padding
         for h in self.header:
             idx = self.header.index(h)
             fields.append("{%d:%s%ds}" % (idx, self.justification[h],
                                           self.lengths[h]))
 
-        format_line = pad.join(fields)
+        format_line = padding.join(fields)
         line = format_line.format(*self.header)
         width = len(line)
         output = "%s\n" % line
@@ -90,10 +94,9 @@ class Printer():
             output += "-" * width + "\n"
         return output
 
-    def dump_data(self, sort=True, reverse=False, padding=2):
+    def dump_data(self, sort=True, reverse=False, padding="  "):
         """ Dump out just the data """
         output = ""
-        pad = " " * padding
         data_keys = self.data.keys()
         if sort:
             data_keys.sort(reverse=reverse)
@@ -102,9 +105,10 @@ class Printer():
             for d in self.data[k]:
                 idx = self.data[k].index(d)
                 hdr = self.header[idx]
-                fields.append("{%d:<%ds}" % (idx, self.lengths[hdr]))
+                fields.append("{%d:%s%ds}" % (idx, self.justification[hdr],
+                                              self.lengths[hdr]))
 
-            format_line = pad.join(fields)
+            format_line = padding.join(fields)
             line = format_line.format(*self.stringify(self.data[k]))
             output += "%s\n" % line
         return output
