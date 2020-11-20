@@ -249,10 +249,14 @@ def printtvs(results=[], showkey=False):
     if showkey:
         columns.insert(0, "md5sum")
     t.set_header(columns)
+    t.justification["Duration"] = ">"
+    t.justification["Bitrate"] = ">"
+    t.justification["Formats"] = ">"
+    t.justification["Size"] = ">"
 
     for m in results:
         # format column data
-        title = m["title"].replace(".", " ")
+        title = m["title"].replace(".", " ").replace("_", " ")
         s_e = "%s / %s" % (m['season'], m['episode'])
         key_s_e = "S%02dE%02d" % (m['season'], m['episode'])
         sortkey = "%s.%s;%s" % (m['show'], key_s_e, m['md5sum'])
@@ -281,7 +285,7 @@ def printtvs(results=[], showkey=False):
         row = []
         if showkey:
             row.append(m["md5sum"])
-        row.append(m["show"])
+        row.append(m["show"].replace("_", " "))
         row.append(title)
         row.append(s_e)
         row.append(duration)
@@ -293,7 +297,7 @@ def printtvs(results=[], showkey=False):
         row.append(filesize)
         t.add_data(row, key=sortkey)
 
-    sys.stdout.write(t.dump(header_underline=True))
+    sys.stdout.write(t.dump(header_underline=True, padding="  |  "))
     return
 
 

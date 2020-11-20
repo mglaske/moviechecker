@@ -224,14 +224,17 @@ class MovieDB(JsonDB):
         return info
 
 
-def printmovies(results=[], showkey=False):
+def printmovies(results=[], showkey=False, showpath=False):
     columns = ["Genre", "Title", "Year", "Duration", "EXT", "Resolution",
                "Bitrate", "AudioC", "Formats", "Size"]
     if showkey:
         columns.insert(0, "md5sum")
+    if showpath:
+        columns.append("Path")
     t = TP()
     t.set_header(columns, justification="<")
     t.justification["Duration"] = ">"
+    t.justification["Bitrate"] = ">"
     t.justification["Formats"] = ">"
     t.justification["Size"] = ">"
 
@@ -271,6 +274,8 @@ def printmovies(results=[], showkey=False):
         row.append(channels)
         row.append(aformat)
         row.append(filesize)
+        if showpath:
+            row.append(m["filename"])
         t.add_data(row, key=sortkey)
 
     sys.stdout.write("%s\n" % t.dump(header_underline=True, padding="  |  "))
@@ -292,7 +297,7 @@ def main(options):
     if options.search or options.s_res:
         results = db.search(options.search.lower(), resolution=options.s_res)
         if len(results) > 0:
-            printmovies(results, options.showkey)
+            printmovies(results, options.showkey, options.showpath)
 
     db.save()
     exit(0)
@@ -310,6 +315,7 @@ if __name__ == '__main__':
     parser.add_option("-c", "--check-videos", dest="checkvideos", action="store_true", help="Check video MD5s to find bad ones [%default]", default=False)
     parser.add_option("--scan", dest="scan", action="store_true", help="Scan files in addition to search db [%default]", default=False)
     parser.add_option("--key", dest="showkey", action="store_true", help="Show Key value [%default]", default=False)
+    parser.add_option("--path", dest="showpath", action="store_true", help="Show file path [%default]", default=False)
     (options, args) = parser.parse_args()
 
     logger = logging.getLogger('')
