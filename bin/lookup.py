@@ -301,7 +301,7 @@ def main(options):
         if len(results) > 0:
             printmovies(results, options.showkey, options.showpath)
 
-    db.save()
+    db.close()
     exit(0)
 
 

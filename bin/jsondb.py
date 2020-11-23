@@ -18,6 +18,7 @@ class JsonDB(object):
         self.write_immediate = False
         self.open = False
         self.save_interval = 20  # Every 100 new entries, lets save the database.
+        self.dirty = False   # Track changes.
         self.load(filename)
 
     def _datetimehandler(self, o):
@@ -55,6 +56,7 @@ class JsonDB(object):
             md5sum = self.md5File(filename)
         self.log.debug("db: add entry=%s", struct)
         self.db[md5sum] = struct
+        self.dirty = True
         self.path_index[filename] = md5sum
         self.log.info("db: adding filename=%s md5sum=%s to db",
                       os.path.basename(filename), md5sum)
@@ -74,6 +76,7 @@ class JsonDB(object):
                 remove_paths.append(self.db[md5sum]['filename'])
         for e in remove:
             self.db.pop(e)
+            self.dirty = True
         for e in remove_paths:
             self.path_index.pop(e)
 
@@ -174,6 +177,7 @@ class JsonDB(object):
             with open(tmpfile, 'w') as fh:
                 json.dump(self.db, fh, default=self._datetimehandler)
             os.rename(tmpfile, filename)
+            self.dirty = False
         except Exception as e:
             self.log.error("unable to write db=%s: %s", filename, e)
             if os.path.isfile(tmpfile):
@@ -208,6 +212,8 @@ class JsonDB(object):
 
     def close(self, save=False):
         if save:
+            self.save()
+        if self.dirty:
             self.save()
         self.clear()
         self.open = False
