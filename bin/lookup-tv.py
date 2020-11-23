@@ -313,9 +313,11 @@ def main(options):
 
     if options.delete:
         db.remove(md5sum=options.delete)
+        db.save()
 
     if options.scan:
         db.scan(options.startdir, check=options.checkvideos, limit=options.limit)
+        db.save()
 
     if options.search:
         results = db.search(options.search.lower(), options.season, options.episode)

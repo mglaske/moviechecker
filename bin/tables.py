@@ -40,7 +40,7 @@ class Printer():
     def update_lengths(self, row_values):
         """ Update column widths for given row values to max """
         for v in row_values:
-            vl = len(str(v))
+            vl = len(v.encode("utf8"))
             idx = row_values.index(v)
             hdr = self.header[idx]
             if self.lengths.get(hdr, vl) <= vl:
@@ -115,4 +115,4 @@ class Printer():
 
     def stringify(self, input_list):
         """ Convert a list of X to a list of strings """
-        return [str(i) for i in input_list]
+        return [i.encode("utf8") for i in input_list]

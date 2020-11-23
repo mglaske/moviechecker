@@ -24,6 +24,11 @@ class JsonDB(object):
         if isinstance(o, datetime.datetime):
             return o.__str__()
 
+    def clear(self):
+        self.db = {}
+        self.path_index = {}
+        return
+
     def load(self, filename=None):
         filename = filename or self.filename
         if os.path.isfile(filename):
@@ -141,6 +146,11 @@ class JsonDB(object):
         return None
 
     def save(self, filename=None):
+        if len(self.db) < 1:
+            self.log.warning("db: save called on empty database, skipping")
+            return
+        if not self.open:
+            return
         filename = filename or self.filename
         lockfile = filename + ".lock"
         if os.path.isfile(lockfile):
@@ -196,7 +206,9 @@ class JsonDB(object):
         days, hours = divmod(hours, 24)
         return "%d:%02d:%02d" % (hours, minutes, seconds)
 
-    def close(self):
-        self.save()
+    def close(self, save=False):
+        if save:
+            self.save()
+        self.clear()
         self.open = False
         return
