@@ -26,6 +26,7 @@ class MovieDB(JsonDB):
             "valid": True
         }
         self.db[md5sum] = movie
+        self.dirty = True
         self.path_index[filename] = md5sum
         self.log.info("moviedb: adding filename=%s title=%s md5sum=%s to db!",
                       filename, title, md5sum)
@@ -52,6 +53,7 @@ class MovieDB(JsonDB):
                     remove_paths.append(self.db[md5sum]['filename'])
         for e in remove:
             self.db.pop(e)
+            self.dirty = True
         for e in remove_paths:
             self.path_index.pop(e)
 
@@ -161,7 +163,7 @@ class MovieDB(JsonDB):
 
     def mediainfo(self, path):
         info = {'title': None, 'duration': None, 'chapters': None, 'video': [], 'audio': []}
-        video = {'height': None, 'width': None, 'resolution': None, 'resname': None, 'codec': None, 'duration': None, 'bit_rate': None, 'bit_depth': None, 'aspect_ratio': None}
+        video = {'height': None, 'width': None, 'resolution': None, 'resname': None, 'codec': None, 'duration': None, 'bit_rate': None, 'bit_depth': None, 'aspect_ratio': None, 'color_primaries': None}
         audio = {'freq': None, 'channels': None, 'language': None, 'bit_depth': None, 'codec': None}
         try:
             mi = MediaInfo.parse(path)
@@ -175,6 +177,7 @@ class MovieDB(JsonDB):
                 continue
             if t.track_type == "Video":
                 vt = dict(video)
+                vd = t.to_data()
                 try:
                     # note, display_aspect_ratio = 1.791 , eg 16:9
                     vt['aspect_ratio'] = t.other_display_aspect_ratio[0]
@@ -201,6 +204,7 @@ class MovieDB(JsonDB):
                 vt['frame_rate'] = t.frame_rate
                 vt['codec'] = t.codec
                 vt['bit_depth'] = t.bit_depth
+                vt['color_primaries'] = vd.get("color_primaries", "--")
                 if t.bit_rate:
                     br = t.bit_rate
                 elif t.nominal_bit_rate:
@@ -228,7 +232,7 @@ class MovieDB(JsonDB):
 
 def printmovies(results=[], showkey=False, showpath=False):
     columns = ["Genre", "Title", "Year", "Duration", "EXT", "Resolution",
-               "Bitrate", "AudioC", "Formats", "Size"]
+               "Bitrate", "Bits", "AudioC", "Formats", "Size"]
     if showkey:
         columns.insert(0, "md5sum")
     if showpath:
@@ -237,14 +241,15 @@ def printmovies(results=[], showkey=False, showpath=False):
     t.set_header(columns, justification="<")
     t.justification["Duration"] = ">"
     t.justification["Bitrate"] = ">"
+    t.justification["Resolution"] = ">"
     t.justification["Formats"] = ">"
     t.justification["Size"] = ">"
+    t.justification["Bits"] = "^"
 
     for m in results:
         title = m["title"].replace(".", " ")
-        extension = m['filename'][-3:].upper()
+        extension = m.get("filetype", "--").upper()
         filesize = m.get("filesize", -1)
-        sortkey = "%s;%s" % (m['title'], m['md5sum'])
         resolution, resname, bitrate = "--", "--", "--"
         channels, aformat, duration = "--", "--", "--"
         if m['mkvinfo']:
@@ -255,6 +260,7 @@ def printmovies(results=[], showkey=False, showpath=False):
                 resolution = video[0].get('resolution', '--')
                 resname = video[0].get('resname', '--')
                 bitrate = video[0].get('bit_rate', '--')
+                bitdepth = str(video[0].get('bit_depth', '--'))
             audio_tracks = len(audio)
             if audio_tracks > 0:
                 channels = audio[0].get('channels', '--') or "--"
@@ -264,6 +270,7 @@ def printmovies(results=[], showkey=False, showpath=False):
             duration = str(mkvinfo.get('duration', '--')).split('.')[0]
 
         row = []
+        sortkey = "%s;%s;%s" % (m['title'], resname, m['md5sum'])
         if showkey:
             row.append(m["md5sum"])
         row.append(m["genre"])
@@ -273,6 +280,7 @@ def printmovies(results=[], showkey=False, showpath=False):
         row.append(extension)
         row.append("%s (%s)" % (resolution, resname))
         row.append(bitrate)
+        row.append(bitdepth)
         row.append(channels)
         row.append(aformat)
         row.append(filesize)

@@ -33,6 +33,7 @@ class TVDB(JsonDB):
         }
         self.log.debug("tvdb: add entry=%s", tv)
         self.db[md5sum] = tv
+        self.dirty = True
         self.path_index[filename] = md5sum
         what = self.name(show, season, episode)
         self.log.info("tvdb: adding filename=%s show=%s md5sum=%s to db",
@@ -60,6 +61,7 @@ class TVDB(JsonDB):
                     remove_paths.append(self.db[md5sum]['filename'])
         for e in remove:
             self.db.pop(e)
+            self.dirty = True
         for e in remove_paths:
             self.path_index.pop(e)
 
@@ -67,18 +69,33 @@ class TVDB(JsonDB):
             self.save()
         return
 
-    def search(self, string, season=None, episode=None):
+    def compare_names(self, oname, otest):
+        name = oname.lower()
+        test = otest.lower()
+        name = re.sub(r'[^A-Za-z0-9]+', '', name)
+        test = re.sub(r'[^A-Za-z0-9]+', '', test)
+        self.log.debug("compare: name=(%s)=%s to test=(%s)=%s", oname, name, otest, test)
+        return name == test
+
+    def search(self, string, season=None, episode=None, show=None):
         results = []
+        self.log.debug("Search for: string=%s season=%s episode=%s show=%s",
+                       string, season, episode, show)
         for md5sum, details in self.db.iteritems():
             # Check this entry..
             if season and not int(season) == int(details['season']):
                 continue
             if episode and not int(episode) == int(details['episode']):
                 continue
+            if show and not self.compare_names(details['show'], show):
+                continue
 
-            if string.lower() in details['show'].lower():
-                results.append(details)
-            elif string.lower() in details['title'].lower():
+            if string:
+                if string.lower() in details['show'].lower():
+                    results.append(details)
+                elif string.lower() in details['title'].lower():
+                    results.append(details)
+            else:
                 results.append(details)
 
         final_results = []
@@ -93,7 +110,7 @@ class TVDB(JsonDB):
         return final_results
 
     def scan(self, startdir,
-             extensions=['mkv', 'avi', 'mp4', 'mpeg', 'mpg', 'ts', 'flv', 'iso', 'm4v'],
+             extensions=['mkv', 'avi', 'mp4', 'mpeg', 'mpg', 'ts', 'flv', 'iso', 'm4v', 'divx', 'wmv'],
              ext_skip=['md5', 'idx', 'sub', 'srt', 'smi', 'nfo', 'nfo-orig', 'sfv', 'txt', 'json', 'jpeg', 'jpg', 'bak'],
              check=False, limit=0):
         """ Scan startdir for files that end in extensions,
@@ -244,7 +261,7 @@ class TVDB(JsonDB):
 
 def printtvs(results=[], showkey=False, showpath=False):
     columns = ["Show", "Title", "S/E", "Duration", "Ext", "Resolution",
-               "Bitrate", "AudioC", "Formats", "Size"]
+               "Bitrate", "Bits", "AudioC", "Formats", "Size"]
     t = TP()
     if showkey:
         columns.insert(0, "md5sum")
@@ -253,8 +270,10 @@ def printtvs(results=[], showkey=False, showpath=False):
     t.set_header(columns)
     t.justification["Duration"] = ">"
     t.justification["Bitrate"] = ">"
+    t.justification["Resolution"] = ">"
     t.justification["Formats"] = ">"
     t.justification["Size"] = ">"
+    t.justification["Bits"] = "^"
 
     for m in results:
         # format column data
@@ -263,7 +282,7 @@ def printtvs(results=[], showkey=False, showpath=False):
         key_s_e = "S%02dE%02d" % (m['season'], m['episode'])
         sortkey = "%s.%s;%s" % (m['show'], key_s_e, m['md5sum'])
         duration = "--"
-        extension = m['filename'][-3:].upper()
+        extension = m.get('filetype', '--').upper()
         filesize = m.get("filesize", -1)
         resolution, resname, bitrate = "--", "--", "--"
         channels, aformat, size = "--", "--", "--"
@@ -275,6 +294,7 @@ def printtvs(results=[], showkey=False, showpath=False):
                 resolution = video[0].get('resolution', '--')
                 resname = video[0].get('resname', '--')
                 bitrate = video[0].get('bit_rate', '--')
+                bitdepth = str(video[0].get('bit_depth', '--'))
             audio_tracks = len(audio)
             if audio_tracks > 0:
                 channels = audio[0].get('channels', '--') or "--"
@@ -294,6 +314,7 @@ def printtvs(results=[], showkey=False, showpath=False):
         row.append(extension)
         row.append("%s (%s)" % (resolution, resname))
         row.append(bitrate)
+        row.append(bitdepth)
         row.append(channels)
         row.append(aformat)
         row.append(filesize)
@@ -317,8 +338,8 @@ def main(options):
     if options.scan:
         db.scan(options.startdir, check=options.checkvideos, limit=options.limit)
 
-    if options.search:
-        results = db.search(options.search.lower(), options.season, options.episode)
+    if options.search or options.show:
+        results = db.search(options.search.lower(), options.season, options.episode, options.show)
         if len(results) > 0:
             printtvs(results, options.showkey, options.showpath)
 
@@ -329,9 +350,10 @@ def main(options):
 if __name__ == '__main__':
     usage = "Usage: %prog [options] arg"
     parser = optparse.OptionParser(usage, version="%prog 1.0")
-    parser.add_option("-s", "--search", dest='search', type='string', help='Search string [%default]', default=None)
+    parser.add_option("-s", "--search", dest='search', type='string', help='Search string [%default]', default="")
     parser.add_option("-S", "--season", dest="season", type="string", help="Show just this season [%default]", default=None)
     parser.add_option("-E", "--episode", dest="episode", type="string", help="Show just this epiosode [%default]", default=None)
+    parser.add_option("--show", dest="show", type="string", help="Search for this show exactly [%default]", default=None)
     parser.add_option("-d", "--delete", dest="delete", type="string", help="Delete hash key from database [%default]", default=None)
     parser.add_option("--db", dest="dbfile", type="string", help="Database file [%default]", default="/d1/tvshows/db.json")
     parser.add_option("--limit", dest="limit", type="int", help="Limit scan to only X entries", default=0)
@@ -351,8 +373,5 @@ if __name__ == '__main__':
     stderr_handler.setFormatter(formatter)
     logger.addHandler(stderr_handler)
     options.log = logger
-
-    # enzyme_logger = logging.getLogger("enzyme")
-    # enzyme_logger.setLevel(logging.ERROR)
 
     main(options)
