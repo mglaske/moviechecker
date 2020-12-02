@@ -7,6 +7,7 @@ class Printer():
         self.header = []
         self.columns = 0
         self.rows = 0
+        self.width = 0
         self.lengths = {}
         self.justification = {}
         self.data = {}
@@ -73,28 +74,46 @@ class Printer():
         self.data = {}
         return
 
-    def dump(self, sort=True, reverse=False, header_underline=False, padding="  "):
+    def dump(self, sort=True, reverse=False, header_underline=False, padding="  ",
+             footer=True, count=True):
         """ Dump the output """
         if header_underline and padding == "  ":
             padding = " | "
         output = self.dump_header(header_underline, padding)
         output += self.dump_data(sort, reverse, padding)
+        if footer:
+            output += self.dump_footer(count)
         return output
 
     def dump_header(self, header_underline=False, padding="  "):
         """ Dump out just the header """
         fields = []
+        underlines = []
+        pad_len = len(padding)
+        pad_half = "-" * int((pad_len - 1) / 2)
+        underline_pad = pad_half + "+" + pad_half
         for idx, h in enumerate(self.header):
             fields.append("{%d:%s%ds}" % (idx, self.justification[h],
                                           self.lengths[h]))
+            underlines.append("-" * self.lengths[h])
+        underline = "+%s+" % underline_pad.join(underlines)
 
         format_line = padding.join(fields)
         line = format_line.format(*self.header)
-        width = len(line)
-        output = "%s\n" % line
+        self.width = len(line)
+        output = "|%s|\n" % line
         if header_underline:
-            output += "-" * width + "\n"
+            output += underline + "\n"
         return output
+
+    def dump_footer(self, count=True):
+        if count:
+            count_out = " Total (%d) --" % len(self.data)
+            count_len = len(count_out)
+            return "+" + "-" * (self.width - count_len) + count_out + "+\n"
+        else:
+            return "+" + "-" * (self.width) + "+\n"
+
 
     def dump_data(self, sort=True, reverse=False, padding="  "):
         """ Dump out just the data """
@@ -111,7 +130,7 @@ class Printer():
 
             format_line = padding.join(fields)
             line = format_line.format(*self.stringify(self.data[k]))
-            output += "%s\n" % line
+            output += "|%s|\n" % line
         return output
 
     def stringify(self, input_list):
