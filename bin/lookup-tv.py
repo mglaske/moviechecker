@@ -12,35 +12,6 @@ from media import MediaFile
 
 class TVDB(JsonDB):
 
-    def name(self, show, season, episode):
-        return "%s.s%02de%02d" % (show, season, episode)
-
-    def add(self, show, season, episode, title, filename,
-            filetype="n/a", filesize=0,
-            mkvinfo=None, md5sum=""):
-        tv = {
-            "show": show,
-            "season": season,
-            "episode": episode,
-            "title": title,
-            "filename": filename,
-            "filetype": filetype,
-            "filesize": filesize,
-            "mkvinfo": mkvinfo,
-            "md5sum": md5sum,
-            "valid": True
-        }
-        self.log.debug("tvdb: add entry=%s", tv)
-        self.db[md5sum] = tv
-        self.dirty = True
-        self.path_index[filename] = md5sum
-        what = self.name(show, season, episode)
-        self.log.info("tvdb: adding filename=%s show=%s md5sum=%s to db",
-                      os.path.basename(filename), what, md5sum)
-        if self.write_immediate:
-            self.save()
-        return
-
     def remove(self, show=None, season=None, episode=None, md5sum=None):
         remove = []
         remove_paths = []
@@ -67,6 +38,9 @@ class TVDB(JsonDB):
         if self.write_immediate:
             self.save()
         return
+
+    def name(self, show, season, episode):
+        return "%s.s%02de%02d" % (show, season, episode)
 
     def compare_names(self, oname, otest):
         name = oname.lower()
@@ -169,13 +143,14 @@ class TVDB(JsonDB):
                     self.db[mfile.md5]['valid'] = True
                     continue
 
+                tv = {"show": show, "title": title,
+                      "season": int(season), "episode": int(episode),
+                      "filename": fullpath, "filetype": extension,
+                      "filesize": self.bytes_to_human(filesize),
+                      "mkvinfo": mfile.mediainfo(),
+                      "md5sum": md5value, "valid": True}
                 found += 1
-                self.add(show=show, season=int(season), episode=int(episode),
-                         title=title,
-                         filename=fullpath, md5sum=md5value,
-                         filetype=extension,
-                         filesize=self.bytes_to_human(filesize),
-                         mkvinfo=mfile.mediainfo())
+                self.add(tv, fullpath, md5value)
 
                 if found % self.save_interval == 0:
                     self.log.debug("Intermediate DB Save, found=%d interval=%d",

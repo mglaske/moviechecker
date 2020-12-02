@@ -6,6 +6,7 @@ import logging
 import hashlib
 import json
 import datetime
+from media import MediaFile
 
 
 class JsonDB(object):
@@ -52,9 +53,12 @@ class JsonDB(object):
 
     def add(self, struct, filename,
             md5sum=""):
-        if md5sum == "":
+        if not md5sum:
             mfile = MediaFile(filename)
             md5sum = mfile.md5file()
+        if not md5sum:
+            self.log.error("db: unable to add entry without a key!")
+            return False
         self.log.debug("db: add entry=%s", struct)
         self.db[md5sum] = struct
         self.dirty = True

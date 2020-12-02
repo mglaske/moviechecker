@@ -11,29 +11,6 @@ from tables import Printer as TP
 
 class MovieDB(JsonDB):
 
-    def add(self, title, year, genre, filename,
-            filetype="n/a", filesize=0,
-            mkvinfo=None, md5sum=""):
-        movie = {
-            "title": title,
-            "year": year,
-            "genre": genre,
-            "filename": filename,
-            "filetype": filetype,
-            "filesize": filesize,
-            "mkvinfo": mkvinfo,
-            "md5sum": md5sum,
-            "valid": True
-        }
-        self.db[md5sum] = movie
-        self.dirty = True
-        self.path_index[filename] = md5sum
-        self.log.info("moviedb: adding filename=%s title=%s md5sum=%s to db!",
-                      filename, title, md5sum)
-        if self.write_immediate:
-            self.save()
-        return
-
     def remove(self, title=None, year=None, md5sum=None):
         remove = []
         remove_paths = []
@@ -148,12 +125,15 @@ class MovieDB(JsonDB):
                     self.db[md5value]['valid'] = True
                     continue
 
-                self.add(title=video_name, year=video_year,
-                         genre=video_genre,
-                         filename=fullpath, md5sum=md5value,
-                         filetype=extension,
-                         filesize=self.bytes_to_human(filesize),
-                         mkvinfo=mfile.mediainfo())
+                movie = {"title": video_name, "year": video_year,
+                         "genre": video_genre,
+                         "filename": fullpath, "filetype": extension,
+                         "filesize": self.bytes_to_human(filesize),
+                         "mkvinfo": mfile.mediainfo(),
+                         "md5sum": md5value,
+                         "valid": True}
+
+                self.add(movie, fullpath, md5value)
 
         # remove files that have been deleted
         self.clean_invalid()
