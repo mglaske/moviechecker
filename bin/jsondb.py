@@ -53,7 +53,8 @@ class JsonDB(object):
     def add(self, struct, filename,
             md5sum=""):
         if md5sum == "":
-            md5sum = self.md5File(filename)
+            mfile = MediaFile(filename)
+            md5sum = mfile.md5file()
         self.log.debug("db: add entry=%s", struct)
         self.db[md5sum] = struct
         self.dirty = True
@@ -83,64 +84,6 @@ class JsonDB(object):
         if self.write_immediate:
             self.save()
         return
-
-    def check_hash(self, path):
-        md5value = self.md5file(path)
-        if self.path_index[path] == md5value:
-            return True
-        return False
-
-    def md5filename(self, path):
-        splits = path.split('.')
-        base = ".".join(splits[0:-1])
-        md5file = base + ".md5"
-        return md5file
-
-    def md5file(self, path):
-        # given a path, pull the md5 from the file
-        md5file = self.md5filename(path)
-        if os.path.isfile(md5file):
-            try:
-                with open(md5file, 'r') as fh:
-                    md5value = fh.readline().split()[0].lower()
-                return md5value
-            except Exception as e:
-                self.log.error("Unable to get md5file=%s: %s", md5file, e)
-        else:
-            # Generate missing md5 file.
-            return self.generate_checksum(path)
-        return None
-
-    def md5Checksum(self, path):
-        try:
-            m = hashlib.md5()
-            with open(path, 'rb') as fh:
-                while True:
-                    data = fh.read(8192)
-                    if not data:
-                        break
-                    m.update(data)
-            return m.hexdigest()
-        except Exception as e:
-            self.log.error("Unable to compute checksum of (%s): %s", path, e)
-        return None
-
-    def generate_checksum(self, path):
-        filename = os.path.basename(path)
-        self.log.info('Generating hash for (%s)', filename)
-        md5value = self.md5Checksum(path)
-        if not md5value:
-            return None
-        md5file = self.md5filename(path)
-        try:
-            with open(md5file, 'w') as fh:
-                fh.write(md5value + "\t" + filename)
-            self.log.info('Wrote computed value (%s) for filename (%s)',
-                          md5value, os.path.basename(md5file))
-        except Exception as e:
-            self.log.error("Unable to write checksum file (%s): %s",
-                           md5file, e)
-        return md5value
 
     def get_path(self, path):
         if path in self.path_index:

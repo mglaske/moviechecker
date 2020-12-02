@@ -8,8 +8,7 @@ import logging
 # import enzyme
 from jsondb import JsonDB
 from tables import Printer as TP
-from pymediainfo import MediaInfo
-
+from media import MediaFile
 
 class TVDB(JsonDB):
 
@@ -104,7 +103,8 @@ class TVDB(JsonDB):
                 # Deleted tv file
                 self.remove(md5sum=r['md5sum'])
                 continue
-            if not self.check_hash(r['filename']):
+            mfile = MediaFile(r["filename"])
+            if not mfile.md5 == r["md5sum"]:
                 self.log.warning("%s has a bad checksum!", r['filename'])
             final_results.append(r)
         return final_results
@@ -150,31 +150,24 @@ class TVDB(JsonDB):
                     self.log.debug("filename=%s unable to parse regex!", filename)
                     continue
 
-                # self.log.debug('Found (%s): BasePath=%s Filename=%s Basename=%s Extension=%s',
-                #               fullpath, video_subdir, filename, basename, extension)
-
-                md5value = self.md5file(fullpath)
-                if md5value:
+                mfile = MediaFile(fullpath) 
+                if mfile.md5:
                     self.log.debug('Found Hashfile: filename=%s MD5Hash=%s',
-                                   filename, md5value)
+                                   filename, mfile.md5)
                     if check:
-                        checkvalue = self.md5Checksum(filename).lower()
-                        if md5value != checkvalue:
+                        if mfile.check_checksum():
+                            self.log.info('GOOD: %s [ %s / %s ]', filename,
+                                          mfile.md5file, mfile.md5computed)
+                        else:
                             self.log.error("BAD: Hash mismatch for file=%s "
                                            "stored_hash=%s computed_hash=%s!",
-                                           filename, md5value, checkvalue)
-                        else:
-                            self.log.info('GOOD: %s [ %s / %s ]', filename,
-                                          md5value, checkvalue)
+                                           filename, mfile.md5file, mfile.md5computed)
                 else:
-                    md5value = self.generate_checksum(fullpath)
+                    mfile.generate_checksum()
 
-                if md5value in self.db:
-                    self.db[md5value]['valid'] = True
+                if mfile.md5 in self.db:
+                    self.db[mfile.md5]['valid'] = True
                     continue
-
-                mediainfo = None
-                mediainfo = self.mediainfo(fullpath)
 
                 found += 1
                 self.add(show=show, season=int(season), episode=int(episode),
@@ -182,7 +175,7 @@ class TVDB(JsonDB):
                          filename=fullpath, md5sum=md5value,
                          filetype=extension,
                          filesize=self.bytes_to_human(filesize),
-                         mkvinfo=mediainfo)
+                         mkvinfo=mfile.mediainfo())
 
                 if found % self.save_interval == 0:
                     self.log.debug("Intermediate DB Save, found=%d interval=%d",
@@ -192,71 +185,6 @@ class TVDB(JsonDB):
         # remove files that have been deleted
         self.clean_invalid()
         return
-
-    def mediainfo(self, path):
-        info = {'title': None, 'duration': None, 'chapters': None, 'video': [], 'audio': []}
-        video = {'height': None, 'width': None, 'resolution': None, 'resname': None, 'codec': None, 'duration': None, 'bit_rate': None, 'bit_depth': None, 'aspect_ratio': None}
-        audio = {'freq': None, 'channels': None, 'language': None, 'bit_depth': None, 'codec': None}
-        try:
-            mi = MediaInfo.parse(path)
-        except Exception as e:
-            self.log.error("MediaInfo threw error reading path=%s: %s", path, e)
-            return {}
-
-        for t in mi.tracks:
-            if t.track_type == 'General':
-                info['duration'] = self.ms_to_human(t.duration or 0)
-                continue
-            if t.track_type == "Video":
-                vt = dict(video)
-                try:
-                    # note, display_aspect_ratio = 1.791 , eg 16:9
-                    vt['aspect_ratio'] = t.other_display_aspect_ratio[0]
-                except IndexError:
-                    vt['aspect_ratio'] = 'n/a'
-                vt['height'] = t.height
-                vt['width'] = t.width
-                vt['resolution'] = "%dx%d" % (t.width, t.height)
-                if 'lace' in (t.scan_type or ""):
-                    scantype = 'i'
-                else:
-                    scantype = 'p'
-                if 1601 > t.height > 1080:
-                    resname = "2160"
-                elif 1081 > t.height > 720:
-                    resname = "1080"
-                elif 721 > t.height > 480:
-                    resname = "720"
-                elif 481 > t.height > 320:
-                    resname = "320"
-                else:
-                    resname = "%s" % t.height
-                vt['resname'] = "%s%s" % (resname, scantype)
-                vt['frame_rate'] = t.frame_rate
-                vt['codec'] = t.codec
-                vt['bit_depth'] = t.bit_depth
-                if t.bit_rate:
-                    br = t.bit_rate
-                elif t.nominal_bit_rate:
-                    br = t.nominal_bit_rate
-                else:
-                    br = None
-                try:
-                    vt['bit_rate'] = self.speed_to_human(br)
-                except Exception:
-                    vt['bit_rate'] = "n/a"
-
-                info['video'].append(vt)
-            if t.track_type == "Audio":
-                at = dict(audio)
-                at['codec'] = t.codec_family
-                at['format'] = t.format
-                at['bit_depth'] = t.bit_depth
-                at['language'] = t.language
-                at['channels'] = t.channel_s
-                at['freq'] = t.sampling_rate
-                info['audio'].append(at)
-        return info
 
 
 def printtvs(results=[], showkey=False, showpath=False):

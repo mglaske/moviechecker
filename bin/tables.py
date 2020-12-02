@@ -39,11 +39,14 @@ class Printer():
 
     def update_lengths(self, row_values):
         """ Update column widths for given row values to max """
-        for v in row_values:
+        for idx, v in enumerate(row_values):
+            if not v:
+                continue
+            if type(v) == int:
+                v = str(v)
             vl = len(v.encode("utf8"))
-            idx = row_values.index(v)
             hdr = self.header[idx]
-            if self.lengths.get(hdr, vl) <= vl:
+            if self.lengths.get(hdr, vl) < vl:
                 self.lengths[hdr] = vl
         return
 
@@ -81,8 +84,7 @@ class Printer():
     def dump_header(self, header_underline=False, padding="  "):
         """ Dump out just the header """
         fields = []
-        for h in self.header:
-            idx = self.header.index(h)
+        for idx, h in enumerate(self.header):
             fields.append("{%d:%s%ds}" % (idx, self.justification[h],
                                           self.lengths[h]))
 
@@ -102,8 +104,7 @@ class Printer():
             data_keys.sort(reverse=reverse)
         for k in data_keys:
             fields = []
-            for d in self.data[k]:
-                idx = self.data[k].index(d)
+            for idx, d in enumerate(self.data[k]):
                 hdr = self.header[idx]
                 fields.append("{%d:%s%ds}" % (idx, self.justification[hdr],
                                               self.lengths[hdr]))
@@ -115,4 +116,4 @@ class Printer():
 
     def stringify(self, input_list):
         """ Convert a list of X to a list of strings """
-        return [i.encode("utf8") for i in input_list]
+        return [i.encode("utf8").strip() for i in input_list]
