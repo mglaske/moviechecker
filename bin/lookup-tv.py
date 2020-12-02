@@ -4,12 +4,11 @@ import os
 import sys
 import re
 import optparse
-import helpers
 import logging
-# import enzyme
+import helpers
 from jsondb import JsonDB
-from tables import Printer as TP
 from media import MediaFile
+from tables import Printer as TP
 
 class TVDB(JsonDB):
 
@@ -79,7 +78,7 @@ class TVDB(JsonDB):
                 self.remove(md5sum=r['md5sum'])
                 continue
             mfile = MediaFile(r["filename"])
-            if not mfile.md5 == r["md5sum"]:
+            if mfile.md5 != r["md5sum"]:
                 self.log.warning("%s has a bad checksum!", r['filename'])
             final_results.append(r)
         return final_results
@@ -125,7 +124,7 @@ class TVDB(JsonDB):
                     self.log.debug("filename=%s unable to parse regex!", filename)
                     continue
 
-                mfile = MediaFile(fullpath) 
+                mfile = MediaFile(fullpath)
                 if mfile.md5:
                     self.log.debug('Found Hashfile: filename=%s MD5Hash=%s',
                                    filename, mfile.md5)
@@ -144,14 +143,14 @@ class TVDB(JsonDB):
                     self.db[mfile.md5]['valid'] = True
                     continue
 
-                tv = {"show": show, "title": title,
-                      "season": int(season), "episode": int(episode),
-                      "filename": fullpath, "filetype": extension,
-                      "filesize": helpers.bytes_to_human(filesize),
-                      "mkvinfo": mfile.mediainfo(),
-                      "md5sum": md5value, "valid": True}
+                data = {"show": show, "title": title,
+                        "season": int(season), "episode": int(episode),
+                        "filename": fullpath, "filetype": extension,
+                        "filesize": helpers.bytes_to_human(filesize),
+                        "mkvinfo": mfile.mediainfo(),
+                        "md5sum": mfile.md5, "valid": True}
                 found += 1
-                self.add(tv, fullpath, md5value)
+                self.add(data, fullpath, mfile.md5)
 
                 if found % self.save_interval == 0:
                     self.log.debug("Intermediate DB Save, found=%d interval=%d",
@@ -163,15 +162,15 @@ class TVDB(JsonDB):
         return
 
 
-def printtvs(results=[], showkey=False, showpath=False):
+def printresults(results=[], showkey=False, showpath=False):
     columns = ["Show", "Title", "S/E", "Duration", "Ext", "Resolution",
                "Bitrate", "Bits", "AudioC", "Formats", "Size"]
-    t = TP()
     if showkey:
         columns.insert(0, "md5sum")
     if showpath:
         columns.append("Path")
-    t.set_header(columns)
+    t = TP()
+    t.set_header(columns, justification="<")
     t.justification["Duration"] = ">"
     t.justification["Bitrate"] = ">"
     t.justification["Resolution"] = ">"
@@ -180,40 +179,34 @@ def printtvs(results=[], showkey=False, showpath=False):
     t.justification["Bits"] = "^"
 
     for m in results:
-        # format column data
         title = m["title"].replace(".", " ").replace("_", " ")
-        s_e = "%s / %s" % (m['season'], m['episode'])
-        key_s_e = "S%02dE%02d" % (m['season'], m['episode'])
-        sortkey = "%s.%s;%s" % (m['show'], key_s_e, m['md5sum'])
-        duration = "--"
-        extension = m.get('filetype', '--').upper()
+        extension = m.get("filetype", "--").upper()
         filesize = m.get("filesize", -1)
         resolution, resname, bitrate = "--", "--", "--"
-        channels, aformat, size = "--", "--", "--"
-        if m['mkvinfo']:
-            mkvinfo = m['mkvinfo']
-            video = mkvinfo.get('video', [])
-            audio = mkvinfo.get('audio', [])
+        channels, aformat, duration = "--", "--", "--"
+        if m["mkvinfo"]:
+            mkvinfo = m["mkvinfo"]
+            video = mkvinfo.get("video", [])
+            audio = mkvinfo.get("audio", [])
             if len(video) > 0:
-                resolution = video[0].get('resolution', '--')
-                resname = video[0].get('resname', '--')
-                bitrate = video[0].get('bit_rate', '--')
-                bitdepth = str(video[0].get('bit_depth', '--'))
+                resolution = video[0].get("resolution", "--")
+                resname = video[0].get("resname", "--")
+                bitrate = video[0].get("bit_rate", "--")
+                bitdepth = str(video[0].get("bit_depth", "--"))
             audio_tracks = len(audio)
             if audio_tracks > 0:
-                channels = audio[0].get('channels', '--') or "--"
+                channels = audio[0].get("channels", "--") or "--"
                 channels = str(channels).replace("Object Based / ", "")
-            formats = [x.get('format') for x in audio if x.get('format')]
+            formats = [x.get("format") for x in audio if x.get("format")]
             aformat = "/".join(formats)
-            duration = str(mkvinfo.get('duration', '--')).split('.')[0]
+            duration = str(mkvinfo.get("duration", "--")).split(".")[0]
 
-        # Build rows
         row = []
         if showkey:
             row.append(m["md5sum"])
         row.append(m["show"].replace("_", " "))
         row.append(title)
-        row.append(s_e)
+        row.append("%s / %s" % (m["season"], m["episode"]))
         row.append(duration)
         row.append(extension)
         row.append("%s (%s)" % (resolution, resname))
@@ -224,6 +217,8 @@ def printtvs(results=[], showkey=False, showpath=False):
         row.append(filesize)
         if showpath:
             row.append(m["filename"])
+        key_s_e = "S%02dE%02d" % (m["season"], m["episode"])
+        sortkey = "%s.%s;%s" % (m["show"], key_s_e, m["md5sum"])
         t.add_data(row, key=sortkey)
 
     sys.stdout.write(t.dump(header_underline=True, padding="  |  "))
@@ -245,7 +240,7 @@ def main(options):
     if options.search or options.show:
         results = db.search(options.search.lower(), options.season, options.episode, options.show)
         if len(results) > 0:
-            printtvs(results, options.showkey, options.showpath)
+            printresults(results, options.showkey, options.showpath)
 
     db.close()
     exit(0)
@@ -254,7 +249,7 @@ def main(options):
 if __name__ == '__main__':
     usage = "Usage: %prog [options] arg"
     parser = optparse.OptionParser(usage, version="%prog 1.0")
-    parser.add_option("-s", "--search", dest='search', type='string', help='Search string [%default]', default="")
+    parser.add_option("-s", "--search", dest="search", type="string", help="Search string [%default]", default="")
     parser.add_option("-S", "--season", dest="season", type="string", help="Show just this season [%default]", default=None)
     parser.add_option("-E", "--episode", dest="episode", type="string", help="Show just this epiosode [%default]", default=None)
     parser.add_option("--show", dest="show", type="string", help="Search for this show exactly [%default]", default=None)
@@ -262,14 +257,14 @@ if __name__ == '__main__':
     parser.add_option("--db", dest="dbfile", type="string", help="Database file [%default]", default="/d1/tvshows/db.json")
     parser.add_option("--limit", dest="limit", type="int", help="Limit scan to only X entries", default=0)
     parser.add_option("--start-dir", dest="startdir", type="string", help="Start Directory to start processing tvs [%default]", default="/d1/tvshows/")
-    parser.add_option("-l", "--log-level", dest="log_level", type='string', help="change log level [%default]", default='info')
-    parser.add_option("-c", "--check-videos", dest="checkvideos", action="store_true", help="Check video MD5's to find bad ones [%default]", default=False)
+    parser.add_option("-c", "--check-videos", dest="checkvideos", action="store_true", help="Check video MD5s to find bad ones [%default]", default=False)
     parser.add_option("--scan", dest="scan", action="store_true", help="Scan files in addition to search db [%default]", default=False)
     parser.add_option("--key", dest="showkey", action="store_true", help="Show Key value [%default]", default=False)
     parser.add_option("--path", dest="showpath", action="store_true", help="Show Filename Path [%default]", default=False)
+    parser.add_option("-l", "--log-level", dest="log_level", type="string", help="change log level [%default]", default="info")
     (options, args) = parser.parse_args()
 
-    logger = logging.getLogger('lookup')
+    logger = logging.getLogger("lookup")
     level = options.log_level.upper()
     logger.setLevel(getattr(logging, level))
     stderr_handler = logging.StreamHandler()
