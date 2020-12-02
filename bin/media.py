@@ -9,12 +9,13 @@ import helpers
 class MediaFile():
 
     def __init__(self, path):
+        logging.basicConfig()
+        self.log = logging.getLogger()
         self.path = path
         self.filename = os.path.basename(path)
         self.md5 = self.md5file(generate_missing=False)
         self.md5file = None      # Only the md5 value retrieved from the file
         self.md5computed = None  # If we computed a hash, this is the value.
-        self.log = logging.getLogger()
 
     def md5filename(self):
         splits = self.path.split('.')
@@ -63,7 +64,7 @@ class MediaFile():
         md5file = self.md5filename()
         try:
             with open(md5file, 'w') as fh:
-                fh.write(md5value + "\t" + filename)
+                fh.write(md5value + "\t" + self.filename)
             self.log.info('Wrote computed value (%s) for filename (%s)',
                           md5value, os.path.basename(md5file))
         except Exception as e:
