@@ -3,6 +3,7 @@ import os
 import logging
 import hashlib
 from pymediainfo import MediaInfo
+import helpers
 
 
 class MediaFile():
@@ -79,25 +80,6 @@ class MediaFile():
             return None
         return filesum.lower() == current.lower()
 
-    def speed_to_human(self, bps, precision=2):
-        mbps = bps / 1000000.0
-        return "%.*fMb/s" % (precision, mbps)
-
-    def bytes_to_human(self, size, precision=2):
-        suffixes = ['B', 'KB', 'MB', 'GB', 'TB']
-        suffixIndex = 0
-        while size > 1024 and suffixIndex < 4:
-            suffixIndex += 1    # increment the index of the suffix
-            size = size / 1024.0  # apply the division
-        return "%.*f%s" % (precision, size, suffixes[suffixIndex])
-
-    def ms_to_human(self, ms):
-        seconds = float(ms) / 1000
-        minutes, seconds = divmod(seconds, 60)
-        hours, minutes = divmod(minutes, 60)
-        days, hours = divmod(hours, 24)
-        return "%d:%02d:%02d" % (hours, minutes, seconds)
-
     def mediainfo(self):
         info = {'title': None, 'duration': None, 'chapters': None, 'video': [], 'audio': []}
         video = {'height': None, 'width': None, 'resolution': None, 'resname': None, 'codec': None, 'duration': None, 'bit_rate': None, 'bit_depth': None, 'aspect_ratio': None, 'color_primaries': None}
@@ -110,7 +92,7 @@ class MediaFile():
 
         for t in mi.tracks:
             if t.track_type == 'General':
-                info['duration'] = self.ms_to_human(t.duration or 0)
+                info['duration'] = helpers.ms_to_human(t.duration or 0)
                 continue
             if t.track_type == "Video":
                 vt = dict(video)
@@ -149,7 +131,7 @@ class MediaFile():
                 else:
                     br = None
                 try:
-                    vt['bit_rate'] = self.speed_to_human(br)
+                    vt['bit_rate'] = helpers.speed_to_human(br)
                 except Exception:
                     vt['bit_rate'] = "n/a"
 

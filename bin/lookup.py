@@ -4,6 +4,7 @@ import os
 import sys
 import optparse
 import logging
+import helpers
 from jsondb import JsonDB
 from media import MediaFile
 from tables import Printer as TP
@@ -128,7 +129,7 @@ class MovieDB(JsonDB):
                 movie = {"title": video_name, "year": video_year,
                          "genre": video_genre,
                          "filename": fullpath, "filetype": extension,
-                         "filesize": self.bytes_to_human(filesize),
+                         "filesize": helpers.bytes_to_human(filesize),
                          "mkvinfo": mfile.mediainfo(),
                          "md5sum": md5value,
                          "valid": True}

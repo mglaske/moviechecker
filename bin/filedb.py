@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import os
 import logging
-import hashlib
 import sqlite3
 import datetime
 
@@ -78,66 +77,6 @@ class FileDB(object):
             self.connection.commit()
         return
 
-    def check_hash(self, path):
-        md5value = self.md5file(path)
-        details = self.get_path(path)
-        if details:
-            if details[0][0] == md5value:
-                return True
-        return False
-
-    def md5filename(self, path):
-        splits = path.split('.')
-        base = ".".join(splits[0:-1])
-        md5file = base + ".md5"
-        return md5file
-
-    def md5file(self, path):
-        # given a path, pull the md5 from the file
-        md5file = self.md5filename(path)
-        if os.path.isfile(md5file):
-            try:
-                with open(md5file, 'r') as fh:
-                    md5value = fh.readline().split()[0].lower()
-                return md5value
-            except Exception as e:
-                self.log.error("Unable to get md5file=%s: %s", md5file, e)
-        else:
-            # Generate missing md5 file.
-            return self.generate_checksum(path)
-        return None
-
-    def md5Checksum(self, path):
-        try:
-            m = hashlib.md5()
-            with open(path, 'rb') as fh:
-                while True:
-                    data = fh.read(8192)
-                    if not data:
-                        break
-                    m.update(data)
-            return m.hexdigest()
-        except Exception as e:
-            self.log.error("Unable to compute checksum of (%s): %s", path, e)
-        return None
-
-    def generate_checksum(self, path):
-        filename = os.path.basename(path)
-        self.log.info('Generating hash for (%s)', filename)
-        md5value = self.md5Checksum(path)
-        if not md5value:
-            return None
-        md5file = self.md5filename(path)
-        try:
-            with open(md5file, 'w') as fh:
-                fh.write(md5value + "\t" + filename)
-            self.log.info('Wrote computed value (%s) for filename (%s)',
-                          md5value, os.path.basename(md5file))
-        except Exception as e:
-            self.log.error("Unable to write checksum file (%s): %s",
-                           md5file, e)
-        return md5value
-
     def get_path(self, path):
         sql = """SELECT * FROM files WHERE filename=?;"""
         try:
@@ -155,25 +94,6 @@ class FileDB(object):
         except Exception as e:
             self.log.error("Unable to fetch hash=%s: %s", md5sum, e)
         return None
-
-    def speed_to_human(self, bps, precision=2):
-        mbps = bps / 1000000.0
-        return "%.*fMb/s" % (precision, mbps)
-
-    def bytes_to_human(self, size, precision=2):
-        suffixes = ['B', 'KB', 'MB', 'GB', 'TB']
-        suffixIndex = 0
-        while size > 1024 and suffixIndex < 4:
-            suffixIndex += 1    # increment the index of the suffix
-            size = size / 1024.0  # apply the division
-        return "%.*f%s" % (precision, size, suffixes[suffixIndex])
-
-    def ms_to_human(self, ms):
-        seconds = float(ms) / 1000
-        minutes, seconds = divmod(seconds, 60)
-        hours, minutes = divmod(minutes, 60)
-        days, hours = divmod(hours, 24)
-        return "%d:%02d:%02d" % (hours, minutes, seconds)
 
     def close(self):
         self.connection.commit()

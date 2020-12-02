@@ -3,7 +3,6 @@ import os
 import sys
 import time
 import logging
-import hashlib
 import json
 import datetime
 from media import MediaFile
@@ -51,8 +50,7 @@ class JsonDB(object):
             self.path_index[details['filename']] = md5
         return True
 
-    def add(self, struct, filename,
-            md5sum=""):
+    def add(self, struct, filename, md5sum=""):
         if not md5sum:
             mfile = MediaFile(filename)
             md5sum = mfile.md5file()
@@ -137,25 +135,6 @@ class JsonDB(object):
             if not d.get('valid', True):
                 self.remove(md5sum=e)
         return
-
-    def speed_to_human(self, bps, precision=2):
-        mbps = bps / 1000000.0
-        return "%.*fMb/s" % (precision, mbps)
-
-    def bytes_to_human(self, size, precision=2):
-        suffixes = ['B', 'KB', 'MB', 'GB', 'TB']
-        suffixIndex = 0
-        while size > 1024 and suffixIndex < 4:
-            suffixIndex += 1    # increment the index of the suffix
-            size = size / 1024.0  # apply the division
-        return "%.*f%s" % (precision, size, suffixes[suffixIndex])
-
-    def ms_to_human(self, ms):
-        seconds = float(ms) / 1000
-        minutes, seconds = divmod(seconds, 60)
-        hours, minutes = divmod(minutes, 60)
-        days, hours = divmod(hours, 24)
-        return "%d:%02d:%02d" % (hours, minutes, seconds)
 
     def close(self, save=False):
         if save:

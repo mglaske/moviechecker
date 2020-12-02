@@ -4,6 +4,7 @@ import os
 import sys
 import re
 import optparse
+import helpers
 import logging
 # import enzyme
 from jsondb import JsonDB
@@ -146,7 +147,7 @@ class TVDB(JsonDB):
                 tv = {"show": show, "title": title,
                       "season": int(season), "episode": int(episode),
                       "filename": fullpath, "filetype": extension,
-                      "filesize": self.bytes_to_human(filesize),
+                      "filesize": helpers.bytes_to_human(filesize),
                       "mkvinfo": mfile.mediainfo(),
                       "md5sum": md5value, "valid": True}
                 found += 1
