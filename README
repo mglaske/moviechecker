@@ -43,7 +43,7 @@ Options:
                         change log level [info]
 
 Example:
-```
+`
 me@sa00:/d1/movies# time ~/lookup.py -s rings
 lookup - INFO - Loaded 3282 movies from database=/d1/movies/db.json
 |Genre     |  Title                                             |  Year  |  Duration  |  EXT  |         Resolution  |    Bitrate  |  Bits  |  AudioC  |                       Formats  |      Size|
@@ -61,7 +61,7 @@ lookup - INFO - Loaded 3282 movies from database=/d1/movies/db.json
 real    0m0.312s
 user    0m0.260s
 sys     0m0.052s
-```
+`
 
 LOOKUP-TV.PY
 ------------
@@ -90,7 +90,7 @@ Options:
                         change log level [info]
 
 Example:
-```
+`
 me@sa00:/d1/movies# time ~/lookup-tv.py -s alf --show alf --season 2
 lookup - INFO - Loaded 28300 tvs from database=/d1/tvshows/db.json
 |Show  |  Title                              |  S/E     |  Duration  |  Ext  |      Resolution  |   Bitrate  |  Bits  |  AudioC  |     Formats  |      Size|
@@ -124,7 +124,7 @@ lookup - INFO - Loaded 28300 tvs from database=/d1/tvshows/db.json
 real    0m1.488s
 user    0m1.333s
 sys     0m0.152s
-```
+`
 
 MOVIECHECKER
 ------------
