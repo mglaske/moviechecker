@@ -1,5 +1,4 @@
-MovieTools
-==========
+# MovieTools
 
 A small suite of tools for managing large collections of TV and Movies
 and ensuring that they're error-free.  Most of these tools work around
@@ -18,8 +17,8 @@ database, it doesn't scale well to tv shows that could be in the tens
 of thousands, so I've planned to update it to sqlite.
 
 
-LOOKUP.PY
----------
+## LOOKUP.PY
+
 Usage: lookup.py [options] arg
 
 Options:
@@ -43,8 +42,7 @@ Options:
                         change log level [info]
 
 Example:
-`
-me@sa00:/d1/movies# time ~/lookup.py -s rings
+`me@sa00:/d1/movies# time ~/lookup.py -s rings
 lookup - INFO - Loaded 3282 movies from database=/d1/movies/db.json
 |Genre     |  Title                                             |  Year  |  Duration  |  EXT  |         Resolution  |    Bitrate  |  Bits  |  AudioC  |                       Formats  |      Size|
 +----------+----------------------------------------------------+--------+------------+-------+---------------------+-------------+--------+----------+--------------------------------+----------+
@@ -60,11 +58,10 @@ lookup - INFO - Loaded 3282 movies from database=/d1/movies/db.json
 
 real    0m0.312s
 user    0m0.260s
-sys     0m0.052s
-`
+sys     0m0.052s`
 
-LOOKUP-TV.PY
-------------
+## LOOKUP-TV.PY
+
 Usage: lookup-tv.py [options] arg
 
 Options:
@@ -90,8 +87,7 @@ Options:
                         change log level [info]
 
 Example:
-`
-me@sa00:/d1/movies# time ~/lookup-tv.py -s alf --show alf --season 2
+`me@sa00:/d1/movies# time ~/lookup-tv.py -s alf --show alf --season 2
 lookup - INFO - Loaded 28300 tvs from database=/d1/tvshows/db.json
 |Show  |  Title                              |  S/E     |  Duration  |  Ext  |      Resolution  |   Bitrate  |  Bits  |  AudioC  |     Formats  |      Size|
 +------+-------------------------------------+----------+------------+-------+------------------+------------+--------+----------+--------------+----------+
@@ -123,11 +119,10 @@ lookup - INFO - Loaded 28300 tvs from database=/d1/tvshows/db.json
 
 real    0m1.488s
 user    0m1.333s
-sys     0m0.152s
-`
+sys     0m0.152s`
 
-MOVIECHECKER
-------------
+## MOVIECHECKER
+
 
 Usage: moviechecker.py [options] arg
 
