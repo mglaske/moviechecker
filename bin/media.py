@@ -9,7 +9,6 @@ import helpers
 class MediaFile():
 
     def __init__(self, path):
-        logging.basicConfig()
         self.log = logging.getLogger()
         self.path = path
         self.filename = os.path.basename(path)
