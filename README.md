@@ -19,6 +19,7 @@ of thousands, so I've planned to update it to sqlite.
 
 ## LOOKUP.PY
 
+```shell
 Usage: lookup.py [options] arg
 
 Options:
@@ -40,9 +41,11 @@ Options:
   --path                Show Filename Path [False]
   -l LOG_LEVEL, --log-level=LOG_LEVEL
                         change log level [info]
+```
 
 Example:
-`me@sa00:/d1/movies# time ~/lookup.py -s rings
+```shell
+me@sa00:/d1/movies# time ~/lookup.py -s rings
 lookup - INFO - Loaded 3282 movies from database=/d1/movies/db.json
 |Genre     |  Title                                             |  Year  |  Duration  |  EXT  |         Resolution  |    Bitrate  |  Bits  |  AudioC  |                       Formats  |      Size|
 +----------+----------------------------------------------------+--------+------------+-------+---------------------+-------------+--------+----------+--------------------------------+----------+
@@ -58,10 +61,12 @@ lookup - INFO - Loaded 3282 movies from database=/d1/movies/db.json
 
 real    0m0.312s
 user    0m0.260s
-sys     0m0.052s`
+sys     0m0.052s
+```
 
 ## LOOKUP-TV.PY
 
+```shell
 Usage: lookup-tv.py [options] arg
 
 Options:
@@ -85,9 +90,11 @@ Options:
   --path                Show Filename Path [False]
   -l LOG_LEVEL, --log-level=LOG_LEVEL
                         change log level [info]
+```
 
 Example:
-`me@sa00:/d1/movies# time ~/lookup-tv.py -s alf --show alf --season 2
+```shell
+me@sa00:/d1/movies# time ~/lookup-tv.py -s alf --show alf --season 2
 lookup - INFO - Loaded 28300 tvs from database=/d1/tvshows/db.json
 |Show  |  Title                              |  S/E     |  Duration  |  Ext  |      Resolution  |   Bitrate  |  Bits  |  AudioC  |     Formats  |      Size|
 +------+-------------------------------------+----------+------------+-------+------------------+------------+--------+----------+--------------+----------+
@@ -119,11 +126,12 @@ lookup - INFO - Loaded 28300 tvs from database=/d1/tvshows/db.json
 
 real    0m1.488s
 user    0m1.333s
-sys     0m0.152s`
+sys     0m0.152s
+```
 
 ## MOVIECHECKER
 
-
+```shell
 Usage: moviechecker.py [options] arg
 
 Options:
@@ -139,3 +147,4 @@ Options:
 
   Debug Options:
     -d, --debug         Print debug information
+```
